@@ -10,7 +10,7 @@ library(tree)
 
 ###load data###
 train<-read.csv("pml-training.csv", header=T)
-test<-read.csv("pml-testing.csv",)
+test<-read.csv("pml-testing.csv",header=T)
 
 ###split train data set into training and testing subsets###
 inTrain<-createDataPartition(y=train$classe,p=0.7,list=FALSE)
