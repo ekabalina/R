@@ -8,7 +8,7 @@ library(randomForest)
 library(rattle)
 library(tree)
 
-###load data###
+###load data##
 train<-read.csv("pml-training.csv", header=T)
 test<-read.csv("pml-testing.csv",header=T)
 
