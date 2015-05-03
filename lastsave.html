@@ -27,7 +27,7 @@ Type rfNews() to see new features/changes/bug fixes.
 [1] 13737   160
 > dim(testing)
 [1] 5885  160
-> 
+> ## DATA CLEANING
 > ###removing zero covariates from training subset###
 > nsv<-nearZeroVar(training);nsv
  [1]   6  12  13  14  15  16  17  20  23  26  51  52  53  54  55  56  57  58  59
@@ -168,7 +168,8 @@ gyros_forearm_y   46  47
  Mean   : 395.6   D:2252  
  3rd Qu.: 654.0   E:2525  
  Max.   :1080.0           
-> 
+
+>### CROSS VALIDATION & MODEL SELECTION 
 > ###classification with tree###
 > tree<-tree(classe ~., data = training)
 > summary(tree)
@@ -361,7 +362,7 @@ magnet_forearm_z                 33.69147
 Loading required package: RColorBrewer
 > ##connection between error rate and amount of trees in forest
 > plot(r)
-> 
+> ### APPLYING THE MODEL WITH HIGHEST ACCURACY ON TEST DATA SET
 > ###predict test data set variables using randomForest###
 > predict(r, test)
  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
