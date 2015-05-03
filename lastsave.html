@@ -1,0 +1,369 @@
+> library(caret)
+Loading required package: lattice
+Loading required package: ggplot2
+> library(ggplot2)
+> library(rpart)
+> library(kernlab)
+> library(rattle)
+Rattle: A free graphical interface for data mining with R.
+Version 3.4.1 Copyright (c) 2006-2014 Togaware Pty Ltd.
+Type 'rattle()' to shake, rattle, and roll your data.
+> library(AppliedPredictiveModeling)
+> library(randomForest)
+randomForest 4.6-10
+Type rfNews() to see new features/changes/bug fixes.
+> library(rattle)
+> library(tree)
+> 
+> ###load data###
+> train<-read.csv("pml-training.csv", header=T)
+> test<-read.csv("pml-testing.csv",)
+> 
+> ###split train data set into training and testing subsets###
+> inTrain<-createDataPartition(y=train$classe,p=0.7,list=FALSE)
+> training<-train[inTrain,]
+> testing<-train[-inTrain,]
+> dim(training)
+[1] 13737   160
+> dim(testing)
+[1] 5885  160
+> 
+> ###removing zero covariates from training subset###
+> nsv<-nearZeroVar(training);nsv
+ [1]   6  12  13  14  15  16  17  20  23  26  51  52  53  54  55  56  57  58  59
+[20]  69  70  71  72  73  74  81  87  88  89  90  91  92  95  98 101 125 126 127
+[39] 128 129 130 131 133 134 136 139 142 143 144 145 146 147 148 149 150
+> training<-training[,-nsv];dim(training)
+[1] 13737   105
+> 
+> ###removing columns with high amount of 'Na'### 
+> training<-training[,colSums(is.na(training)) == 0]
+> dim(training)
+[1] 13737    59
+> 
+> ###removing timestamps,row numbers, usernames###
+> training<-training[,-c(1,2,3,4,5)]
+> dim(training)
+[1] 13737    54
+> 
+> ###removing highly correlated variables###
+> M<-abs(cor(training[,-54]))
+> diag(M)<-0
+> which(M>0.85,arr.ind=T)
+                 row col
+total_accel_belt   5   2
+accel_belt_y      10   2
+accel_belt_z      11   2
+accel_belt_x       9   3
+magnet_belt_x     12   3
+roll_belt          2   5
+accel_belt_y      10   5
+accel_belt_z      11   5
+pitch_belt         3   9
+magnet_belt_x     12   9
+roll_belt          2  10
+total_accel_belt   5  10
+accel_belt_z      11  10
+roll_belt          2  11
+total_accel_belt   5  11
+accel_belt_y      10  11
+pitch_belt         3  12
+accel_belt_x       9  12
+gyros_arm_y       20  19
+gyros_arm_x       19  20
+gyros_dumbbell_z  34  32
+gyros_forearm_z   47  32
+gyros_dumbbell_x  32  34
+gyros_forearm_z   47  34
+gyros_forearm_z   47  46
+gyros_dumbbell_x  32  47
+gyros_dumbbell_z  34  47
+gyros_forearm_y   46  47
+> correlated<-findCorrelation(M, cutoff = .85, verbose = FALSE)
+> training<-training[,-correlated]
+> dim(training)
+[1] 13737    46
+> summary(training)
+   num_window       yaw_belt       total_accel_belt  gyros_belt_x      
+ Min.   :  1.0   Min.   :-179.00   Min.   : 0.00    Min.   :-1.000000  
+ 1st Qu.:218.0   1st Qu.: -88.30   1st Qu.: 3.00    1st Qu.:-0.030000  
+ Median :421.0   Median : -13.10   Median :17.00    Median : 0.030000  
+ Mean   :428.7   Mean   : -11.36   Mean   :11.32    Mean   :-0.005433  
+ 3rd Qu.:642.0   3rd Qu.:  12.80   3rd Qu.:18.00    3rd Qu.: 0.110000  
+ Max.   :864.0   Max.   : 179.00   Max.   :28.00    Max.   : 2.220000  
+  gyros_belt_y       gyros_belt_z     magnet_belt_x   magnet_belt_y  
+ Min.   :-0.64000   Min.   :-1.3500   Min.   :-52.0   Min.   :359.0  
+ 1st Qu.: 0.00000   1st Qu.:-0.2000   1st Qu.:  9.0   1st Qu.:581.0  
+ Median : 0.02000   Median :-0.1000   Median : 35.0   Median :601.0  
+ Mean   : 0.03927   Mean   :-0.1324   Mean   : 55.5   Mean   :593.8  
+ 3rd Qu.: 0.11000   3rd Qu.:-0.0200   3rd Qu.: 59.0   3rd Qu.:610.0  
+ Max.   : 0.64000   Max.   : 1.6100   Max.   :481.0   Max.   :673.0  
+ magnet_belt_z       roll_arm         pitch_arm          yaw_arm         
+ Min.   :-623.0   Min.   :-180.00   Min.   :-88.800   Min.   :-180.0000  
+ 1st Qu.:-375.0   1st Qu.: -32.30   1st Qu.:-26.000   1st Qu.: -43.4000  
+ Median :-319.0   Median :   0.00   Median :  0.000   Median :   0.0000  
+ Mean   :-345.6   Mean   :  17.32   Mean   : -4.779   Mean   :  -0.6294  
+ 3rd Qu.:-306.0   3rd Qu.:  77.30   3rd Qu.: 11.100   3rd Qu.:  45.9000  
+ Max.   : 293.0   Max.   : 180.00   Max.   : 88.200   Max.   : 180.0000  
+ total_accel_arm  gyros_arm_x        gyros_arm_z       accel_arm_x     
+ Min.   : 1.00   Min.   :-6.37000   Min.   :-2.3300   Min.   :-404.00  
+ 1st Qu.:17.00   1st Qu.:-1.28000   1st Qu.:-0.0700   1st Qu.:-242.00  
+ Median :27.00   Median : 0.08000   Median : 0.2500   Median : -43.00  
+ Mean   :25.55   Mean   : 0.05051   Mean   : 0.2725   Mean   : -60.27  
+ 3rd Qu.:33.00   3rd Qu.: 1.57000   3rd Qu.: 0.7200   3rd Qu.:  84.00  
+ Max.   :66.00   Max.   : 4.87000   Max.   : 3.0200   Max.   : 437.00  
+  accel_arm_y       accel_arm_z       magnet_arm_x     magnet_arm_y 
+ Min.   :-318.00   Min.   :-636.00   Min.   :-584.0   Min.   :-392  
+ 1st Qu.: -55.00   1st Qu.:-145.00   1st Qu.:-304.0   1st Qu.: -11  
+ Median :  13.00   Median : -48.00   Median : 290.0   Median : 201  
+ Mean   :  32.15   Mean   : -72.24   Mean   : 190.9   Mean   : 156  
+ 3rd Qu.: 140.00   3rd Qu.:  23.00   3rd Qu.: 637.0   3rd Qu.: 323  
+ Max.   : 308.00   Max.   : 292.00   Max.   : 782.0   Max.   : 583  
+  magnet_arm_z    roll_dumbbell     pitch_dumbbell     yaw_dumbbell     
+ Min.   :-597.0   Min.   :-152.83   Min.   :-148.50   Min.   :-150.871  
+ 1st Qu.: 126.0   1st Qu.: -17.99   1st Qu.: -41.33   1st Qu.: -77.624  
+ Median : 442.0   Median :  48.11   Median : -21.20   Median :  -3.588  
+ Mean   : 304.6   Mean   :  23.88   Mean   : -10.84   Mean   :   1.643  
+ 3rd Qu.: 544.0   3rd Qu.:  67.56   3rd Qu.:  17.29   3rd Qu.:  79.511  
+ Max.   : 694.0   Max.   : 153.55   Max.   : 149.40   Max.   : 154.516  
+ total_accel_dumbbell gyros_dumbbell_y gyros_dumbbell_z   accel_dumbbell_x 
+ Min.   : 0.00        Min.   :-2.100   Min.   : -2.3800   Min.   :-419.00  
+ 1st Qu.: 5.00        1st Qu.:-0.140   1st Qu.: -0.3100   1st Qu.: -51.00  
+ Median :11.00        Median : 0.050   Median : -0.1300   Median :  -9.00  
+ Mean   :13.79        Mean   : 0.053   Mean   : -0.1217   Mean   : -28.91  
+ 3rd Qu.:20.00        3rd Qu.: 0.210   3rd Qu.:  0.0300   3rd Qu.:  11.00  
+ Max.   :58.00        Max.   :52.000   Max.   :317.0000   Max.   : 235.00  
+ accel_dumbbell_y  accel_dumbbell_z  magnet_dumbbell_x magnet_dumbbell_y
+ Min.   :-189.00   Min.   :-334.00   Min.   :-643.0    Min.   :-3600.0  
+ 1st Qu.:  -8.00   1st Qu.:-142.00   1st Qu.:-535.0    1st Qu.:  232.0  
+ Median :  43.00   Median :  -1.00   Median :-480.0    Median :  311.0  
+ Mean   :  52.68   Mean   : -38.14   Mean   :-328.1    Mean   :  220.8  
+ 3rd Qu.: 111.00   3rd Qu.:  39.00   3rd Qu.:-303.0    3rd Qu.:  390.0  
+ Max.   : 315.00   Max.   : 318.00   Max.   : 592.0    Max.   :  632.0  
+ magnet_dumbbell_z  roll_forearm     pitch_forearm     yaw_forearm     
+ Min.   :-262.00   Min.   :-180.00   Min.   :-72.50   Min.   :-180.00  
+ 1st Qu.: -45.00   1st Qu.:  -0.63   1st Qu.:  0.00   1st Qu.: -69.70  
+ Median :  14.00   Median :  22.10   Median :  9.20   Median :   0.00  
+ Mean   :  45.85   Mean   :  33.80   Mean   : 10.63   Mean   :  18.71  
+ 3rd Qu.:  95.00   3rd Qu.: 140.00   3rd Qu.: 28.40   3rd Qu.: 109.00  
+ Max.   : 452.00   Max.   : 180.00   Max.   : 89.80   Max.   : 180.00  
+ total_accel_forearm gyros_forearm_x    gyros_forearm_y     accel_forearm_x  
+ Min.   :  0.00      Min.   :-22.0000   Min.   : -7.02000   Min.   :-496.00  
+ 1st Qu.: 29.00      1st Qu.: -0.2100   1st Qu.: -1.45000   1st Qu.:-176.00  
+ Median : 36.00      Median :  0.0500   Median :  0.03000   Median : -56.00  
+ Mean   : 34.65      Mean   :  0.1578   Mean   :  0.08575   Mean   : -60.42  
+ 3rd Qu.: 41.00      3rd Qu.:  0.5600   3rd Qu.:  1.61000   3rd Qu.:  77.00  
+ Max.   :108.00      Max.   :  3.9700   Max.   :311.00000   Max.   : 477.00  
+ accel_forearm_y  accel_forearm_z   magnet_forearm_x  magnet_forearm_y
+ Min.   :-632.0   Min.   :-446.00   Min.   :-1280.0   Min.   :-896.0  
+ 1st Qu.:  56.0   1st Qu.:-182.00   1st Qu.: -615.0   1st Qu.:   7.0  
+ Median : 200.0   Median : -40.00   Median : -369.0   Median : 591.0  
+ Mean   : 163.3   Mean   : -55.78   Mean   : -308.9   Mean   : 379.4  
+ 3rd Qu.: 312.0   3rd Qu.:  26.00   3rd Qu.:  -68.0   3rd Qu.: 736.0  
+ Max.   : 923.0   Max.   : 291.00   Max.   :  672.0   Max.   :1460.0  
+ magnet_forearm_z classe  
+ Min.   :-973.0   A:3906  
+ 1st Qu.: 192.0   B:2658  
+ Median : 511.0   C:2396  
+ Mean   : 395.6   D:2252  
+ 3rd Qu.: 654.0   E:2525  
+ Max.   :1080.0           
+> 
+> ###classification with tree###
+> tree<-tree(classe ~., data = training)
+> summary(tree)
+
+Classification tree:
+tree(formula = classe ~ ., data = training)
+Variables actually used in tree construction:
+ [1] "pitch_forearm"        "magnet_belt_y"        "accel_forearm_z"     
+ [4] "magnet_dumbbell_y"    "roll_forearm"         "magnet_dumbbell_z"   
+ [7] "num_window"           "accel_dumbbell_y"     "accel_forearm_x"     
+[10] "magnet_arm_x"         "magnet_forearm_z"     "magnet_arm_y"        
+[13] "total_accel_dumbbell" "yaw_belt"            
+Number of terminal nodes:  21 
+Residual mean deviance:  1.595 = 21880 / 13720 
+Misclassification error rate: 0.322 = 4423 / 13737 
+> print(tree)
+node), split, n, deviance, yval, (yprob)
+      * denotes terminal node
+
+  1) root 13737 43620.00 A ( 0.2843416 0.1934920 0.1744195 0.1639368 0.1838101 )  
+    2) pitch_forearm < -34.35 1113    64.03 A ( 0.9955076 0.0044924 0.0000000 0.0000000 0.0000000 ) *
+    3) pitch_forearm > -34.35 12624 40560.00 A ( 0.2216413 0.2101553 0.1897972 0.1783904 0.2000158 )  
+      6) magnet_belt_y < 555.5 1022  1053.00 E ( 0.0019569 0.0019569 0.0009785 0.1859100 0.8091977 )  
+       12) accel_forearm_z < 117.5 798    15.36 E ( 0.0012531 0.0000000 0.0000000 0.0000000 0.9987469 ) *
+       13) accel_forearm_z > 117.5 224   223.70 D ( 0.0044643 0.0089286 0.0044643 0.8482143 0.1339286 ) *
+      7) magnet_belt_y > 555.5 11602 36990.00 A ( 0.2409929 0.2284951 0.2064299 0.1777280 0.1463541 )  
+       14) magnet_dumbbell_y < 439.5 9711 30520.00 A ( 0.2820513 0.1816497 0.2397281 0.1714551 0.1251158 )  
+         28) roll_forearm < 122.5 6107 18140.00 A ( 0.4019977 0.1765187 0.1822499 0.1452432 0.0939905 )  
+           56) magnet_dumbbell_z < -30.5 2006  3952.00 A ( 0.6580259 0.2093719 0.0074776 0.0707876 0.0543370 )  
+            112) roll_forearm < -60.6 432  1212.00 B ( 0.2013889 0.3194444 0.0069444 0.2500000 0.2222222 ) *
+            113) roll_forearm > -60.6 1574  2074.00 A ( 0.7833545 0.1791614 0.0076239 0.0216010 0.0082592 ) *
+           57) magnet_dumbbell_z > -30.5 4101 12780.00 A ( 0.2767618 0.1604487 0.2677396 0.1816630 0.1133870 )  
+            114) num_window < 241.5 993  1231.00 A ( 0.8056395 0.0010070 0.0000000 0.0614300 0.1319235 )  
+              228) num_window < 174.5 257   541.10 E ( 0.2490272 0.0038911 0.0000000 0.2373541 0.5097276 ) *
+              229) num_window > 174.5 736     0.00 A ( 1.0000000 0.0000000 0.0000000 0.0000000 0.0000000 ) *
+            115) num_window > 241.5 3108  9380.00 C ( 0.1077864 0.2113900 0.3532819 0.2200772 0.1074646 )  
+              230) accel_dumbbell_y < -40.5 485   378.90 C ( 0.0000000 0.0432990 0.9113402 0.0288660 0.0164948 ) *
+              231) accel_dumbbell_y > -40.5 2623  8188.00 D ( 0.1277164 0.2424705 0.2500953 0.2554327 0.1242852 )  
+                462) magnet_dumbbell_y < 273.5 1111  2898.00 C ( 0.0216022 0.2142214 0.4905491 0.1548155 0.1188119 ) *
+                463) magnet_dumbbell_y > 273.5 1512  4529.00 D ( 0.2056878 0.2632275 0.0734127 0.3293651 0.1283069 )  
+                  926) magnet_dumbbell_z < 38.5 624  1612.00 A ( 0.4519231 0.1506410 0.0689103 0.2996795 0.0288462 ) *
+                  927) magnet_dumbbell_z > 38.5 888  2422.00 D ( 0.0326577 0.3423423 0.0765766 0.3502252 0.1981982 ) *
+         29) roll_forearm > 122.5 3604 10960.00 C ( 0.0788013 0.1903441 0.3371254 0.2158713 0.1778579 )  
+           58) accel_forearm_x < -107.5 1039  2613.00 D ( 0.0596728 0.0866218 0.2309913 0.5399423 0.0827719 )  
+            116) magnet_arm_x < 235.5 338   778.30 C ( 0.0384615 0.1538462 0.5917160 0.1804734 0.0355030 ) *
+            117) magnet_arm_x > 235.5 701  1382.00 D ( 0.0699001 0.0542083 0.0570613 0.7132668 0.1055635 ) *
+           59) accel_forearm_x > -107.5 2565  7483.00 C ( 0.0865497 0.2323587 0.3801170 0.0846004 0.2163743 )  
+            118) magnet_forearm_z < -245 199   211.80 A ( 0.7939698 0.2010050 0.0000000 0.0000000 0.0050251 ) *
+            119) magnet_forearm_z > -245 2366  6447.00 C ( 0.0270499 0.2349958 0.4120879 0.0917160 0.2341505 )  
+              238) magnet_arm_y < 195.5 1205  3241.00 E ( 0.0174274 0.1369295 0.3261411 0.1336100 0.3858921 ) *
+              239) magnet_arm_y > 195.5 1161  2735.00 C ( 0.0370370 0.3367786 0.5012920 0.0482343 0.0766581 ) *
+       15) magnet_dumbbell_y > 439.5 1891  4748.00 B ( 0.0301428 0.4690640 0.0354310 0.2099418 0.2554204 )  
+         30) total_accel_dumbbell < 5.5 580  1029.00 D ( 0.0000000 0.1206897 0.0017241 0.6465517 0.2310345 )  
+           60) yaw_belt < 17.025 452   465.30 D ( 0.0000000 0.1548673 0.0022124 0.8296460 0.0132743 ) *
+           61) yaw_belt > 17.025 128     0.00 E ( 0.0000000 0.0000000 0.0000000 0.0000000 1.0000000 ) *
+         31) total_accel_dumbbell > 5.5 1311  2628.00 B ( 0.0434783 0.6231884 0.0503432 0.0167811 0.2662090 )  
+           62) num_window < 258.5 182    52.75 E ( 0.0000000 0.0000000 0.0000000 0.0329670 0.9670330 ) *
+           63) num_window > 258.5 1129  2029.00 B ( 0.0504872 0.7236492 0.0584588 0.0141718 0.1532329 )  
+            126) magnet_dumbbell_z < 72.5 603   458.00 B ( 0.0945274 0.8938640 0.0000000 0.0016584 0.0099502 ) *
+            127) magnet_dumbbell_z > 72.5 526  1118.00 B ( 0.0000000 0.5285171 0.1254753 0.0285171 0.3174905 ) *
+>###graphical interpretation of tree
+> plot(tree)
+> text(tree, cex=0.5)
+> ###classification using rpart###
+> rpart <- train(classe ~ .,method="rpart",data=training)
+>##plot of the tree
+> fancyRpartPlot(rpart$finalModel)
+> print(rpart)
+CART 
+
+13737 samples
+   45 predictor
+    5 classes: 'A', 'B', 'C', 'D', 'E' 
+
+No pre-processing
+Resampling: Bootstrapped (25 reps) 
+
+Summary of sample sizes: 13737, 13737, 13737, 13737, 13737, 13737, ... 
+
+Resampling results across tuning parameters:
+
+  cp      Accuracy  Kappa  Accuracy SD  Kappa SD
+  0.0345  0.543     0.421  0.0143       0.0174  
+  0.0387  0.518     0.383  0.0363       0.0548  
+  0.0664  0.360     0.126  0.0960       0.1579  
+
+Accuracy was used to select the optimal model using  the largest value.
+The final value used for the model was cp = 0.03448276. 
+> 
+> ###applying randomForest###
+> r<-randomForest(classe ~., data = training, importance = TRUE, do.trace = 100)
+ntree      OOB      1      2      3      4      5
+  100:   0.44%  0.05%  0.49%  0.67%  0.98%  0.28%
+  200:   0.41%  0.05%  0.30%  0.75%  0.89%  0.32%
+  300:   0.37%  0.03%  0.30%  0.67%  0.84%  0.28%
+  400:   0.39%  0.05%  0.26%  0.67%  0.93%  0.28%
+  500:   0.39%  0.03%  0.30%  0.67%  0.89%  0.32%
+
+> print(r) # view results 
+
+Call:
+ randomForest(formula = classe ~ ., data = training, importance = TRUE,      do.trace = 100) 
+               Type of random forest: classification
+                     Number of trees: 500
+No. of variables tried at each split: 6
+
+        OOB estimate of  error rate: 0.39%
+Confusion matrix:
+     A    B    C    D    E  class.error
+A 3905    0    0    0    1 0.0002560164
+B    5 2650    3    0    0 0.0030097818
+C    0   15 2380    1    0 0.0066777963
+D    0    0   19 2232    1 0.0088809947
+E    0    0    0    8 2517 0.0031683168
+> #OOB estimate of  error rate< 0.4% = high accuracy
+> 
+> ###prediction of testing set observations (train data set subset)### 
+> predict(r, testing)
+    1     7    10    15    17    24    25    29    31    37    38    41    46 
+    A     A     A     A     A     A     A     A     A     A     A     A     A 
+ ....... 
+ 
+Levels: A B C D E
+> cols <- names(training)
+> t<-table(testing$classe, predict(r, testing[cols]))
+> prop.table(t, 1) ##predicted versus true values//pribability of correct classifications
+   
+               A            B            C            D            E
+  A 1.0000000000 0.0000000000 0.0000000000 0.0000000000 0.0000000000
+  B 0.0000000000 0.9991220369 0.0008779631 0.0000000000 0.0000000000
+  C 0.0000000000 0.0077972710 0.9922027290 0.0000000000 0.0000000000
+  D 0.0000000000 0.0000000000 0.0093360996 0.9906639004 0.0000000000
+  E 0.0000000000 0.0000000000 0.0000000000 0.0046210721 0.9953789279
+> sum(testing$classe==predict(r, testing[cols])) / nrow(testing)
+[1] 0.9960918 ##Hight accuracy = model describes data well
+> 
+> ###imortance of  variables###
+> importance(r,type=1)
+                     MeanDecreaseAccuracy
+num_window                       51.53047
+yaw_belt                         64.04107
+total_accel_belt                 27.74076
+gyros_belt_x                     27.09003
+gyros_belt_y                     25.70470
+gyros_belt_z                     34.28495
+magnet_belt_x                    33.41716
+magnet_belt_y                    35.55852
+magnet_belt_z                    33.85266
+roll_arm                         41.18283
+pitch_arm                        26.39160
+yaw_arm                          31.85591
+total_accel_arm                  26.54826
+gyros_arm_x                      29.79127
+gyros_arm_z                      24.04897
+accel_arm_x                      19.58151
+accel_arm_y                      28.24753
+accel_arm_z                      21.15445
+magnet_arm_x                     19.05553
+magnet_arm_y                     18.61643
+magnet_arm_z                     28.42443
+roll_dumbbell                    33.92911
+pitch_dumbbell                   19.94006
+yaw_dumbbell                     30.41173
+total_accel_dumbbell             27.62811
+gyros_dumbbell_y                 26.01039
+gyros_dumbbell_z                 36.89711
+accel_dumbbell_x                 27.08128
+accel_dumbbell_y                 36.25791
+accel_dumbbell_z                 34.67084
+magnet_dumbbell_x                29.74051
+magnet_dumbbell_y                43.13392
+magnet_dumbbell_z                53.92258
+roll_forearm                     27.18456
+pitch_forearm                    41.38908
+yaw_forearm                      30.14913
+total_accel_forearm              23.07060
+gyros_forearm_x                  28.60361
+gyros_forearm_y                  32.18322
+accel_forearm_x                  26.45285
+accel_forearm_y                  28.96196
+accel_forearm_z                  33.48296
+magnet_forearm_x                 24.11635
+magnet_forearm_y                 29.15853
+magnet_forearm_z                 33.69147
+##Unimportant variables can be deleted to save time and reduce amount of calculations
+> varImpPlot(r, type=1) ##variable importance plot
+> 
+> ###marginal function - graphical interpretation of correct classifications of each observation ###
+> plot(margin(r, testing$classe))
+Loading required package: RColorBrewer
+> ##connection between error rate and amount of trees in forest
+> plot(r)
+> 
+> ###predict test data set variables using randomForest###
+> predict(r, test)
+ 1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20 
+ B  A  B  A  A  E  D  B  A  A  B  C  B  A  E  E  A  B  B  B 
+Levels: A B C D E
