@@ -1,1119 +1,12 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_VAR_Logged_1D.hql
--- Created on:    12/11/2015
--- Authors:       Calabrese, A.
--- Purpose:       Process to calculate the VAR Logged 1D KPIs
--- -----------------------------------------------------------------------------
-
--- creating a temporary table to store the 1^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp01 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  accesses_1d INT,
-  number_used_platforms_1d INT,
-  number_used_devices_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp01';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp01
--- accesses_1d
--- number_used_platforms_1d
--- number_used_devices_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp01
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.accesses_1d,
-    tmp.number_used_platforms_1d,
-    tmp.number_used_devices_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(accesses_1d) AS accesses_1d,
-    count(distinct(number_used_platforms_1d)) AS number_used_platforms_1d,
-    count(distinct(number_used_devices_1d)) AS number_used_devices_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    final.user_id2 AS accesses_1d,
-    final.channel AS number_used_platforms_1d,
-    final.deviceid AS number_used_devices_1d
-
-from (
-select t1.user_id AS user_id1, t2.userid AS user_id2, t2.channel, t2.deviceid
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_login t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.userid) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 2^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp02 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  playlists_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp02';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp02
--- playlists_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp02
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.playlists_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(playlists_1d) AS playlists_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    (if(final.eventtype = "FAVOURITECREATION", final.user_id2, null)) AS playlists_1d
-
-from (
-select t1.user_id AS user_id1, t2.user_id AS user_id2, t2.eventtype
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_favourite t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.user_id) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 3^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp03 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  impressions_1d INT,
-  viewed_adv_1d INT,
-  clicks_through_1d INT,
-  skipped_adv_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp03';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp03
--- impressions_1d
--- viewed_adv_1d
--- clicks_through_1d
--- skipped_adv_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp03
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.impressions_1d,
-    tmp.viewed_adv_1d,
-    tmp.clicks_through_1d,
-    tmp.skipped_adv_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(impressions_1d) AS impressions_1d,
-    count(viewed_adv_1d) AS viewed_adv_1d,
-    count(clicks_through_1d) AS clicks_through_1d,
-    count(skipped_adv_1d) AS skipped_adv_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    final.user_id2 AS impressions_1d,
-    (if(final.completion_percentage == 100, final.user_id2, null)) AS viewed_adv_1d,
-    (if(final.has_been_clicked == "Y", final.user_id2, null)) AS clicks_through_1d,
-    (if(final.has_been_skipped == "Y", final.user_id2, null)) AS skipped_adv_1d
-
-from (
-select t1.user_id AS user_id1, t1.birth_date, t1.gender, t2.user_id AS user_id2, t2.completion_percentage, t2.has_been_clicked, t2.has_been_skipped
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_impression t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.user_id) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 4^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp04 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  likes_1d INT,
-  dislikes_1d INT,
-  ratings_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp04';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp04
--- likes_1d
--- dislikes_1d
--- ratings_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp04
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.likes_1d,
-    tmp.dislikes_1d,
-    tmp.ratings_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    sum(likes_1d) AS likes_1d,
-    sum(dislikes_1d) AS dislikes_1d,
-    sum(ratings_1d) AS ratings_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    (if(final.is_liked = "Y", 1, 0)) AS likes_1d,
-    (if(final.is_disliked = "Y", 1, 0)) AS dislikes_1d,
-    (if(final.rating !="", 1, 0)) AS ratings_1d
-
-from (
-select t1.user_id AS user_id1, t1.birth_date, t1.gender, t2.user_id AS user_id2, t2.is_liked, t2.is_disliked, t2.rating
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_curation t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.user_id) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 5^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp05 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  npvr_requests_1d INT,
-  npvr_views_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp05';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp05
--- npvr_requests_1d
--- npvr_views_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp05
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.npvr_requests_1d,
-    tmp.npvr_views_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(npvr_requests_1d) AS npvr_requests_1d,
-    count(npvr_views_1d) AS npvr_views_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    (if(final.recording_action = "CREATE", final.user_id2, null)) AS npvr_requests_1d,
-    (if(final.recording_action = "PLAY", final.user_id2, null)) AS npvr_views_1d
-
-from (
-select t1.user_id AS user_id1, t2.user_id AS user_id2, t2.recording_action
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_npvr t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.user_id) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 6^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp06 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  purchases_1d INT,
-  revenues_1d DOUBLE
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp06';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp06
--- purchases_1d
--- revenues_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp06
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    vlm.first_view_date,
-    tmp.purchases_1d,
-    tmp.revenues_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(purchases_1d) AS purchases_1d,
-    sum(revenues_1d) AS revenues_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    final.user_id2 AS purchases_1d,
-    final.originalprice AS revenues_1d
-
-from (
-select t1.user_id AS user_id1, t2.userid AS user_id2, t2.originalprice
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_purchase t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.userid) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 7^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp07 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  reminders_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp07';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp07
--- reminders_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp07
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.reminders_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(reminders_1d) AS reminders_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    final.user_id2 AS reminders_1d
-
-from (
-select t1.user_id AS user_id1, t2.userid AS user_id2
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_reminder t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.userid) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 8^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp08 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  searches_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp08';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp08
--- searches_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp08
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.searches_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(searches_1d) AS searches_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    final.user_id2 AS searches_1d
-
-from (
-select t1.user_id AS user_id1, t2.user_id AS user_id2
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_search t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.user_id) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 9^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp09 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  video_drop_off_1d INT,
-  average_video_drop_off_1d DOUBLE,
-  launched_apps_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp09';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp09
--- video_drop_off_1d
--- average_video_drop_off_1d
--- launched_apps_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp09
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.video_drop_off_1d,
-    tmp.average_video_drop_off_1d,
-    tmp.launched_apps_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(video_drop_off_1d) AS video_drop_off_1d,
-    (count(average_video_drop_off_1d_num1)/count(average_video_drop_off_1d_num2)) AS average_video_drop_off_1d,
-    count(launched_apps_1d) AS launched_apps_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    (if(final.eventtype == "VIDEOEND" and final.terminationreason == "ERROR", final.sessionid, null)) AS video_drop_off_1d,
-    (if(final.eventtype == "VIDEOEND" and final.terminationreason == "ERROR", final.sessionid, null)) AS average_video_drop_off_1d_num1,
-    final.user_id2 AS average_video_drop_off_1d_num2,
-    (if(final.eventtype == "APPLICATIONSTARTUP", final.sessionid, null)) AS launched_apps_1d
-
-from (
-select t1.user_id AS user_id1, t2.userid AS user_id2, t2.sessionid, t2.eventtype, t2.terminationreason
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_user_action t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.userid) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 10^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp10 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  video_views_1d INT,
-  video_playback_duration_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp10';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp10
--- video_views_1d
--- video_playback_duration_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp10
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.video_views_1d,
-    tmp.video_playback_duration_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(video_views_1d) AS video_views_1d,
-    round(sum(video_playback_duration_1d)/60) AS video_playback_duration_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    (if(final.download != "Y", final.user_id2, null)) AS video_views_1d,
-    (if(final.download != "Y", final.consumption, null)) AS video_playback_duration_1d
-
-from (
-select t1.user_id AS user_id1, t2.userid AS user_id2, t2.download, t2.consumption
-from
-    var_logged_master t1
-    left outer join
-    (select userid, consumption, download from target_watching t3, target_category_map t4
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1
-and t3.contentid = t4.contentid) t2
-    on t1.user_id = t2.userid
-) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 11^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp11 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  top_watched_category_1d STRING
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp11';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp11
--- top_watched_category_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp11
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.categoryname AS top_watched_category_1d
-from
-    var_logged_master vlm
-    left outer join
-    (select S.userid, S.categoryname from (
-select userid,categoryname,num,rank() over (partition by userid order by num desc,categoryname) AS r
-from (
-select t1.userid, t3.categoryname, count(t1.userid) AS num
-          from target_profiling t1, target_watching t2, target_category_map t3
-       where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t2.DT_REFERENCE) == 1
-           and t1.userid = t2.userid and t2.contentid = t3.contentid
-group by t1.userid, t3.categoryname) a) S
-  where S.r=1) tmp
-    on vlm.user_id = tmp.userid;
-
--- creating a temporary table to store the 12^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp12 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  live_views_1d INT,
-  live_playback_duration_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp12';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp12
--- live_views_1d
--- live_playback_duration_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp12
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.live_views_1d,
-    tmp.live_playback_duration_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(live_views_1d) AS live_views_1d,
-    round(sum(live_playback_duration_1d)/60) AS live_playback_duration_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    (if(final.download != "Y", final.user_id2, null)) AS live_views_1d,
-    (if(final.download != "Y", final.consumption, null)) AS live_playback_duration_1d
-
-from (
-select t1.user_id AS user_id1, t2.userid AS user_id2, t2.download, t2.consumption
-from
-    var_logged_master t1
-    left outer join
-    (select userid, consumption, download from target_watching t3, target_epg_catalog t4
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1
-and t3.contentid = t4.livecontentid) t2
-    on t1.user_id = t2.userid
-) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- creating a temporary table to store the 13^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp13 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  top_watched_channel_1d STRING
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp13';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp13
--- TOP_WATCHED_CHANNEL_1D
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp13
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.channel_name AS top_watched_channel_1d
-from
-    var_logged_master vlm
-    left outer join
-    (select S.userid, S.channel_name from (
-select userid,channel_name,num,rank() over (partition by userid order by num desc,channel_name) AS r
-from (
-select t1.userid, t3.channel_name, count(t1.userid) AS num
-          from target_profiling t1, target_watching t2, target_epg_catalog t3
-       where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t2.DT_REFERENCE) == 1
-           and t1.userid = t2.userid and t2.contentid = t3.livecontentid
-group by t1.userid, t3.channel_name) a) S
-  where S.r=1) tmp
-    on vlm.user_id = tmp.userid;
-
--- creating a temporary table to store the 14^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D_tmp14 (
-  date STRING,
-  user_id STRING,
-  birth_date DATE,
-  gender STRING,
-  age_bracket STRING,
-  country STRING,
-  state STRING,
-  province STRING,
-  city STRING,
-  zip_code STRING,
-  registration_method STRING,
-  referral_source STRING,
-  registration_trigger STRING,
-  registration_date STRING,
-  most_used_platform STRING,
-  first_access_date STRING,
-  first_view_date STRING,
-  views_1d INT,
-  playback_duration_1d INT,
-  downloads_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D_tmp14';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D_tmp14
--- views_1d
--- playback_duration_1d
--- downloads_1d
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_logged_1D_tmp14
-select
-    vlm.date,
-    vlm.user_id,
-    vlm.birth_date,
-    vlm.gender,
-    vlm.age_bracket,
-    vlm.country,
-    vlm.state,
-    vlm.province,
-    vlm.city,
-    vlm.zip_code,
-    vlm.registration_method,
-    vlm.referral_source,
-    vlm.registration_trigger,
-    vlm.registration_date,
-    vlm.most_used_platform,
-    vlm.first_access_date,
-    vlm.first_view_date,
-    tmp.views_1d,
-    tmp.playback_duration_1d,
-    tmp.downloads_1d
-from
-    var_logged_master vlm, (select
-    user_id,
-    count(views_1d) AS views_1d,
-    round(sum(playback_duration_1d)/60) AS playback_duration_1d,
-    count(downloads_1d) AS downloads_1d
-
-from (
-
-select
-
-    final.user_id1 AS user_id,
-    (if(final.download != "Y", final.user_id2, null)) AS views_1d,
-    (if(final.download != "Y", final.consumption, null)) AS playback_duration_1d,
-    (if(final.download = "Y", final.user_id2, null)) AS downloads_1d
-
-from (
-select t1.user_id AS user_id1, t2.userid AS user_id2, t2.download, t2.consumption
-from
-    var_logged_master t1
-    left outer join
-    (select * from target_watching t3 where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t3.DT_REFERENCE) == 1) t2
-    on t1.user_id = t2.userid) final) a
-group by user_id) tmp
-where vlm.user_id = tmp.user_id;
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_1D
--- join all temporary tables
--- -----------------------------------------------------------------------------
-
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D (
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_VAR_Logged.hql
+-- Created on:    13/11/2015
+-- Authors:       Melchiorre, Pierpaolo
+-- Purpose:       Process to calculate the VAR Logged KPIs
+-------------------------------------------------------------------------------
+
+-- creating table to store the VAR Logged's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -1159,53 +52,252 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1D (
   purchases_1d INT,
   revenues_1d DOUBLE,
   npvr_requests_1d INT,
-  npvr_views_1d INT
+  npvr_views_1d INT,
+  accesses_7D INT,
+  number_used_platforms_7D INT,
+  number_used_devices_7D INT,
+  video_views_7D INT,
+  video_playback_duration_7D INT,
+  live_views_7D INT,
+  live_playback_duration_7D INT,
+  views_7D INT,
+  playback_duration_7D INT,
+  top_watched_category_7D STRING,
+  top_watched_channel_7D STRING,
+  downloads_7D INT,
+  playlists_7D INT,
+  impressions_7D INT,
+  viewed_adv_7D INT,
+  clicks_through_7D INT,
+  skipped_adv_7D INT,
+  likes_7D INT,
+  dislikes_7D INT,
+  ratings_7D INT,
+  searches_7D INT,
+  reminders_7D INT,
+  video_drop_off_7D INT,
+  average_video_drop_off_7D DOUBLE,
+  launched_apps_7D INT,
+  purchases_7D INT,
+  revenues_7D DOUBLE,
+  npvr_requests_7D INT,
+  npvr_views_7D INT,
+  accesses_30D INT,
+  number_used_platforms_30D INT,
+  number_used_devices_30D INT,
+  video_views_30D INT,
+  video_playback_duration_30D INT,
+  live_views_30D INT,
+  live_playback_duration_30D INT,
+  views_30D INT,
+  playback_duration_30D INT,
+  top_watched_category_30D STRING,
+  top_watched_channel_30D STRING,
+  downloads_30D INT,
+  playlists_30D INT,
+  impressions_30D INT,
+  viewed_adv_30D INT,
+  clicks_through_30D INT,
+  skipped_adv_30D INT,
+  likes_30D INT,
+  dislikes_30D INT,
+  ratings_30D INT,
+  searches_30D INT,
+  reminders_30D INT,
+  video_drop_off_30D INT,
+  average_video_drop_off_30D DOUBLE,
+  launched_apps_30D INT,
+  purchases_30D INT,
+  revenues_30D DOUBLE,
+  npvr_requests_30D INT,
+  npvr_views_30D INT,
+  accesses_60D INT,
+  number_used_platforms_60D INT,
+  number_used_devices_60D INT,
+  video_views_60D INT,
+  video_playback_duration_60D INT,
+  live_views_60D INT,
+  live_playback_duration_60D INT,
+  views_60D INT,
+  playback_duration_60D INT,
+  top_watched_category_60D STRING,
+  top_watched_channel_60D STRING,
+  downloads_60D INT,
+  playlists_60D INT,
+  impressions_60D INT,
+  viewed_adv_60D INT,
+  clicks_through_60D INT,
+  skipped_adv_60D INT,
+  likes_60D INT,
+  dislikes_60D INT,
+  ratings_60D INT,
+  searches_60D INT,
+  reminders_60D INT,
+  video_drop_off_60D INT,
+  average_video_drop_off_60D DOUBLE,
+  launched_apps_60D INT,
+  purchases_60D INT,
+  revenues_60D DOUBLE,
+  npvr_requests_60D INT,
+  npvr_views_60D INT,
+  accesses_90D INT,
+  number_used_platforms_90D INT,
+  number_used_devices_90D INT,
+  video_views_90D INT,
+  video_playback_duration_90D INT,
+  live_views_90D INT,
+  live_playback_duration_90D INT,
+  views_90D INT,
+  playback_duration_90D INT,
+  top_watched_category_90D STRING,
+  top_watched_channel_90D STRING,
+  downloads_90D INT,
+  playlists_90D INT,
+  impressions_90D INT,
+  viewed_adv_90D INT,
+  clicks_through_90D INT,
+  skipped_adv_90D INT,
+  likes_90D INT,
+  dislikes_90D INT,
+  ratings_90D INT,
+  searches_90D INT,
+  reminders_90D INT,
+  video_drop_off_90D INT,
+  average_video_drop_off_90D DOUBLE,
+  launched_apps_90D INT,
+  purchases_90D INT,
+  revenues_90D DOUBLE,
+  npvr_requests_90D INT,
+  npvr_views_90D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_1D';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/output';
 
-INSERT OVERWRITE TABLE var_logged_1D
-SELECT t1.*,
-       t10.video_views_1d,
-       t10.video_playback_duration_1d,
-       t12.live_views_1d,
-       t12.live_playback_duration_1d,
-       t14.views_1d,
-       t14.playback_duration_1d,
-       t11.top_watched_category_1d,
-       t13.top_watched_channel_1d,
-       t14.downloads_1d,
-       t2.playlists_1d,
-       t3.impressions_1d,
-       t3.viewed_adv_1d,
-       t3.clicks_through_1d,
-       t3.skipped_adv_1d,
-       t4.likes_1d,
-       t4.dislikes_1d,
-       t4.ratings_1d,
-       t8.searches_1d,
-       t7.reminders_1d,
-       t9.video_drop_off_1d,
-       t9.average_video_drop_off_1d,
-       t9.launched_apps_1d,
-       t6.purchases_1d,
-       t6.revenues_1d,
-       t5.npvr_requests_1d,
-       t5.npvr_views_1d
-FROM var_logged_1D_tmp01 t1
-JOIN var_logged_1D_tmp02 t2 ON t1.user_id = t2.user_id
-JOIN var_logged_1D_tmp03 t3 ON t1.user_id = t3.user_id
-JOIN var_logged_1D_tmp04 t4 ON t1.user_id = t4.user_id
-JOIN var_logged_1D_tmp05 t5 ON t1.user_id = t5.user_id
-JOIN var_logged_1D_tmp06 t6 ON t1.user_id = t6.user_id
-JOIN var_logged_1D_tmp07 t7 ON t1.user_id = t7.user_id
-JOIN var_logged_1D_tmp08 t8 ON t1.user_id = t8.user_id
-JOIN var_logged_1D_tmp09 t9 ON t1.user_id = t9.user_id
-JOIN var_logged_1D_tmp10 t10 ON t1.user_id = t10.user_id
-JOIN var_logged_1D_tmp11 t11 ON t1.user_id = t11.user_id
-JOIN var_logged_1D_tmp12 t12 ON t1.user_id = t12.user_id
-JOIN var_logged_1D_tmp13 t13 ON t1.user_id = t13.user_id
-JOIN var_logged_1D_tmp14 t14 ON t1.user_id = t14.user_id;
+-- inserting data into var_logged table
+INSERT OVERWRITE TABLE var_logged
+SELECT
+  t1.*, 
+  t2.accesses_7D,
+  t2.number_used_platforms_7D,
+  t2.number_used_devices_7D,
+  t2.video_views_7D,
+  t2.video_playback_duration_7D,
+  t2.live_views_7D,
+  t2.live_playback_duration_7D,
+  t2.views_7D,
+  t2.playback_duration_7D,
+  t2.top_watched_category_7D,
+  t2.top_watched_channel_7D,
+  t2.downloads_7D,
+  t2.playlists_7D,
+  t2.impressions_7D,
+  t2.viewed_adv_7D,
+  t2.clicks_through_7D,
+  t2.skipped_adv_7D,
+  t2.likes_7D,
+  t2.dislikes_7D,
+  t2.ratings_7D,
+  t2.searches_7D,
+  t2.reminders_7D,
+  t2.video_drop_off_7D,
+  t2.average_video_drop_off_7D,
+  t2.launched_apps_7D,
+  t2.purchases_7D,
+  t2.revenues_7D,
+  t2.npvr_requests_7D,
+  t2.npvr_views_7D,
+  t3.accesses_30D,
+  t3.number_used_platforms_30D,
+  t3.number_used_devices_30D,
+  t3.video_views_30D,
+  t3.video_playback_duration_30D,
+  t3.live_views_30D,
+  t3.live_playback_duration_30D,
+  t3.views_30D,
+  t3.playback_duration_30D,
+  t3.top_watched_category_30D,
+  t3.top_watched_channel_30D,
+  t3.downloads_30D,
+  t3.playlists_30D,
+  t3.impressions_30D,
+  t3.viewed_adv_30D,
+  t3.clicks_through_30D,
+  t3.skipped_adv_30D,
+  t3.likes_30D,
+  t3.dislikes_30D,
+  t3.ratings_30D,
+  t3.searches_30D,
+  t3.reminders_30D,
+  t3.video_drop_off_30D,
+  t3.average_video_drop_off_30D,
+  t3.launched_apps_30D,
+  t3.purchases_30D,
+  t3.revenues_30D,
+  t3.npvr_requests_30D,
+  t3.npvr_views_30D,
+  t4.accesses_60D,
+  t4.number_used_platforms_60D,
+  t4.number_used_devices_60D,
+  t4.video_views_60D,
+  t4.video_playback_duration_60D,
+  t4.live_views_60D,
+  t4.live_playback_duration_60D,
+  t4.views_60D,
+  t4.playback_duration_60D,
+  t4.top_watched_category_60D,
+  t4.top_watched_channel_60D,
+  t4.downloads_60D,
+  t4.playlists_60D,
+  t4.impressions_60D,
+  t4.viewed_adv_60D,
+  t4.clicks_through_60D,
+  t4.skipped_adv_60D,
+  t4.likes_60D,
+  t4.dislikes_60D,
+  t4.ratings_60D,
+  t4.searches_60D,
+  t4.reminders_60D,
+  t4.video_drop_off_60D,
+  t4.average_video_drop_off_60D,
+  t4.launched_apps_60D,
+  t4.purchases_60D,
+  t4.revenues_60D,
+  t4.npvr_requests_60D,
+  t4.npvr_views_60D,
+  t5.accesses_90D,
+  t5.number_used_platforms_90D,
+  t5.number_used_devices_90D,
+  t5.video_views_90D,
+  t5.video_playback_duration_90D,
+  t5.live_views_90D,
+  t5.live_playback_duration_90D,
+  t5.views_90D,
+  t5.playback_duration_90D,
+  t5.top_watched_category_90D,
+  t5.top_watched_channel_90D,
+  t5.downloads_90D,
+  t5.playlists_90D,
+  t5.impressions_90D,
+  t5.viewed_adv_90D,
+  t5.clicks_through_90D,
+  t5.skipped_adv_90D,
+  t5.likes_90D,
+  t5.dislikes_90D,
+  t5.ratings_90D,
+  t5.searches_90D,
+  t5.reminders_90D,
+  t5.video_drop_off_90D,
+  t5.average_video_drop_off_90D,
+  t5.launched_apps_90D,
+  t5.purchases_90D,
+  t5.revenues_90D,
+  t5.npvr_requests_90D,
+  t5.npvr_views_90D
+FROM var_logged_1D t1 
+JOIN var_logged_7D t2 ON t1.user_id = t2.user_id
+JOIN var_logged_30D t3 ON t1.user_id = t3.user_id
+JOIN var_logged_60D t4 ON t1.user_id = t4.user_id
+JOIN var_logged_90D t5 ON t1.user_id = t5.user_id;
