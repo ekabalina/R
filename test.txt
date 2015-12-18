@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_nPVR_Play_Latency.hql
 -- Created on:    06/11/2015
 -- Author:        Geetha Nair, Parvathy
 -- Purpose:       Process to calculate the nPVR Play Latency Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
-add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function GetPlayLatency;
 create temporary function GetPlayLatency as 'com.accenture.AVSA.hive.UDF.GetPlayLatency';
