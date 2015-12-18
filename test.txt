@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Loyalty_Weekly_by_Platform.hql
 -- Created on:    19/11/2015
 -- Author:        Calabrese, A.
 -- Purpose:       Process to calculate the Loyalty by Platform Aggregate (Weekly) table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Code.jar;
-add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Code.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function Week_c_top;
 drop temporary function Week_1p_bottom_filling;
