@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_User_Experience.hql
 -- Created on:    05/11/2015
 -- Authors:       Kansal, Arshi
 -- Purpose:       Process to calculate the User Experience Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
-add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function GetTimeBand;
 create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
