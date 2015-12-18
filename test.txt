@@ -1,540 +1,244 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Accesses_Weekly.hql
--- Created on:    09/11/2015
--- Author:        Nayak, Vinayak
--- Purpose:       Process to calculate the Accesses Aggregate (Weekly) table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Advertising.hql
+-- Created on:    03/11/2015
+-- Author:        Calabrese, Alessio
+-- Purpose:       Process to calculate the Advertising Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-
+drop temporary function GetTimeBand;
 drop temporary function Week_c_top;
-
+drop temporary function Month_c_top;
+create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
 create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
+create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
 
--- creating a temporary table to store the 1^ subset of Accesses's Weekly KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_01 (
-  CONTEXT STRING,
-  DATE DATE,
-  GEOGRAPHY_ID STRING,
-  ACCESS_DISTRIBUTION STRING,
-  LOGGED_USERS INT
+-- creation of aggregate Advertising table
+CREATE TABLE IF NOT EXISTS agg_advertising (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  ad_format STRING,
+  geography_id INT,
+  common_content_id INT,
+  advertising_id INT,
+  logged_impressions INT,
+  logged_clicks_through INT,
+  logged_viewed_ads INT,
+  logged_skipped_ads INT,
+  logged_drop_off INT,
+  logged_users INT,
+  anonymous_impressions INT,
+  anonymous_clicks_through INT,
+  anonymous_viewed_ads INT,
+  anonymous_skipped_ads INT,
+  anonymous_drop_off INT,
+  anonymous_users INT
 )
 ROW FORMAT DELIMITED 
 FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
+LINES TERMINATED BY '\n' 
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_01';
+LOCATION '${hivevar:root_path}/agg/ADVERTISING/output';
 
--------------------------------------------------------------------------------
--- Temporary table name: accesses_weekly_01
--- LOGGED_USERS
--------------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE accesses_weekly_01
-SELECT
-  "Weekly Accesses" as CONTEXT,
-  x1.DATE as DATE,
-  nvl(geography_id, 0) as GEOGRAPHY_ID,
-  (CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END ) AS ACCESS_DISTRIBUTION,
-   x1.LOGGED_USERS AS LOGGED_USERS
-from (
- select
-    x5.* 
-    from(
-        select
-         t3.geography_id as GEOGRAPHY_ID,
-         x4.*
-        from(
-            select
-             t2.REGIONNAME as REGIONNAME,
-             t2.COUNTRY as COUNTRY,
-             t2.STATE as STATE,
-             x3.*
-            from(
-                 select
-                 t2.weekly_day as DATE,
-                 x2.*
-                from(
-                         select 
-                              C.LOGGED_USERS,
-                              C.TOT,
-                              B.dt_reference as dt_reference,
-                              B.userid as userid
-                        FROM(
-                              select SUM(A.LOGGED_USERS) AS TOT, A.userid, A.LOGGED_USERS
-                              FROM(
-                                    SELECT t1.userid, COUNT(t1.userid) AS LOGGED_USERS
-                                    FROM
-                                    target_login t1
-                                    where t1.userid != t1.deviceid AND t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                                    GROUP BY t1.userid
-                                 ) A
-                             GROUP BY A.LOGGED_USERS, A.userid
-                            )C
-                             Left outer join target_login B ON C.userid = B.userid
-                    )x2
-                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                )x3
-            left outer join target_profiling t2
-            on t2.userid = x3.userid
-            )x4
-        left outer join dim_geography t3
-        on x4.REGIONNAME = t3.CONTINENT
-            AND x4.COUNTRY = t3.STATE
-            AND x4.STATE = t3.REGION
-        )x5
-    )x1
-group by x1.DATE, nvl(geography_id, 0), x1.LOGGED_USERS, CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END;
-   
--- creating a temporary table to store the 2^ subset of Accesses's Weekly KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_02 (
-  CONTEXT STRING,
-  DATE DATE,
-  GEOGRAPHY_ID STRING,
-  ACCESS_DISTRIBUTION STRING,
-  LOGGED_USERS_MORE_PLATFORMS INT
-)
-ROW FORMAT DELIMITED 
-FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_02';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_weekly_02
--- LOGGED_USERS_MORE_PLATFORMS
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE accesses_weekly_02
-SELECT
-  "Weekly Accesses" as CONTEXT,
-  x1.DATE as DATE,
-  nvl(geography_id, 0) as GEOGRAPHY_ID,  
-  (CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END ) AS ACCESS_DISTRIBUTION,
-   x1.LOGGED_USERS_MORE_PLATFORMS AS LOGGED_USERS_MORE_PLATFORMS
-from (
- select
-    x5.* 
-    from(
-        select
-         t3.geography_id as GEOGRAPHY_ID,
-         x4.*
-        from(
-            select
-             t2.REGIONNAME as REGIONNAME,
-             t2.COUNTRY as COUNTRY,
-             t2.STATE as STATE,
-             x3.*
-            from(
-                 select
-                 t2.weekly_day as DATE,
-                 x2.*
-                from(
-                         select 
-                              C.LOGGED_USERS_MORE_PLATFORMS,
-                              C.TOT,
-                              B.dt_reference as dt_reference,
-                              B.userid as userid
-                        FROM(
-                              select SUM(A.LOGGED_USERS_MORE_PLATFORMS) AS TOT, A.userid, A.LOGGED_USERS_MORE_PLATFORMS
-                              FROM(
-                                    SELECT t1.userid, COUNT(t1.userid) AS LOGGED_USERS_MORE_PLATFORMS
-                                    FROM
-                                    target_login t1
-                                    where t1.userid != t1.deviceid AND t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                                    GROUP BY t1.userid, t1.channel
-                                    HAVING LOGGED_USERS_MORE_PLATFORMS > 1
-                                 ) A
-                             GROUP BY A.LOGGED_USERS_MORE_PLATFORMS, A.userid
-                            )C 
-                             Left outer join target_login B ON C.userid = B.userid
-                    )x2
-                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                )x3
-            left outer join target_profiling t2
-            on t2.userid = x3.userid
-            )x4
-        left outer join dim_geography t3
-        on x4.REGIONNAME = t3.CONTINENT
-            AND x4.COUNTRY = t3.STATE
-            AND x4.STATE = t3.REGION
-        )x5
-    )x1
-group by x1.DATE, nvl(geography_id, 0), x1.LOGGED_USERS_MORE_PLATFORMS, CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END;
-
--- creating a temporary table to store the 3^ subset of Accesses's Weekly KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_03 (
-  CONTEXT STRING,
-  DATE DATE,
-  GEOGRAPHY_ID STRING,
-  ACCESS_DISTRIBUTION STRING,
-  ANONYMOUS_USERS INT
-)
-ROW FORMAT DELIMITED 
-FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_03';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_weekly_03
--- ANONYMOUS_USERS
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE accesses_weekly_03
-SELECT
-  "Weekly Accesses" as CONTEXT,
-  x1.DATE as DATE,
-  nvl(geography_id, 0) as GEOGRAPHY_ID,
-  (CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END ) AS ACCESS_DISTRIBUTION,
-   x1.ANONYMOUS_USERS AS ANONYMOUS_USERS
-from (
- select
-    x5.* 
-    from(
-        select
-         t3.geography_id as GEOGRAPHY_ID,
-         x4.*
-        from(
-            select
-             t2.REGIONNAME as REGIONNAME,
-             t2.COUNTRY as COUNTRY,
-             t2.STATE as STATE,
-             x3.*
-            from(
-                 select
-                 t2.weekly_day as DATE,
-                 x2.*
-                from(
-                         select 
-                              C.ANONYMOUS_USERS,
-                              C.TOT,
-                              B.dt_reference as dt_reference,
-                              B.userid as userid
-                        FROM(
-                              select SUM(A.ANONYMOUS_USERS) AS TOT, A.userid, A.ANONYMOUS_USERS
-                              FROM(
-                                    SELECT t1.userid, COUNT(t1.userid) AS ANONYMOUS_USERS
-                                    FROM
-                                    target_login t1
-                                    where t1.userid = t1.deviceid AND t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                                    GROUP BY t1.userid
-                                 ) A
-                             GROUP BY A.ANONYMOUS_USERS, A.userid
-                            )C 
-                             Left outer join target_login B ON C.userid = B.userid
-                    )x2
-                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                )x3
-            left outer join target_profiling t2
-            on t2.userid = x3.userid
-            )x4
-        left outer join dim_geography t3
-        on x4.REGIONNAME = t3.CONTINENT
-            AND x4.COUNTRY = t3.STATE
-            AND x4.STATE = t3.REGION
-        )x5
-    )x1
-group by x1.DATE, nvl(geography_id, 0), x1.ANONYMOUS_USERS, CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END;
-
- -- creating a temporary table to store the 4^ subset of Accesses's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_04 (
-  CONTEXT STRING,
-  DATE DATE,
-  GEOGRAPHY_ID STRING,
-  ACCESS_DISTRIBUTION STRING,
-  DEVICES INT
-)
-ROW FORMAT DELIMITED 
-FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_04';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_04
--- DEVICES
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE accesses_weekly_04
-SELECT
-  "Daily Accesses" as CONTEXT,
-  x1.DATE as DATE,
-  nvl(geography_id, 0) as GEOGRAPHY_ID,
-  (CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END ) AS ACCESS_DISTRIBUTION,
-   x1.DEVICES AS DEVICES
-from (
- select
-    x5.* 
-    from(
-        select
-         t3.geography_id as GEOGRAPHY_ID,
-         x4.*
-        from(
-            select
-             t2.REGIONNAME as REGIONNAME,
-             t2.COUNTRY as COUNTRY,
-             t2.STATE as STATE,
-             x3.*
-            from(
-                 select
-                 t2.daily_day as DATE,
-                 x2.*
-                from(
-                         select 
-                              C.DEVICES,
-                              C.TOT,
-                              B.dt_reference as dt_reference,
-                              B.deviceid as deviceid,
-                              B.userid as userid
-                        FROM(
-                              select count(A.DEVICES) AS TOT, A.deviceid, A.DEVICES
-                              FROM(
-                                    SELECT t1.deviceid, COUNT(t1.deviceid) AS DEVICES
-                                    FROM
-                                    target_login t1
-                                    where t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                                    GROUP BY t1.deviceid
-                                 ) A
-                             GROUP BY A.DEVICES, A.deviceid
-                            )C 
-                             Left outer join target_login B ON C.deviceid = B.deviceid
-                    )x2
-                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                )x3
-            left outer join target_profiling t2
-            on t2.userid = x3.userid
-            )x4
-        left outer join dim_geography t3
-        on x4.REGIONNAME = t3.CONTINENT
-            AND x4.COUNTRY = t3.STATE
-            AND x4.STATE = t3.REGION
-        )x5
-    )x1
-group by x1.DATE, nvl(geography_id, 0), x1.DEVICES, CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END;
-   
-   
--- creating a temporary table to store the 5^ subset of Accesses's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_05 (
-  CONTEXT STRING,
-  DATE DATE,
-  GEOGRAPHY_ID STRING,
-  ACCESS_DISTRIBUTION STRING,
-  DISTINCT_USERS_DEVICES INT
-)
-ROW FORMAT DELIMITED 
-FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_05';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_weekly_05
--- DISTINCT_USERS_DEVICES
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE accesses_weekly_05
-SELECT
-  "Daily Accesses" as CONTEXT,
-  x1.DATE as DATE,
-  nvl(geography_id, 0) as GEOGRAPHY_ID,
-  (CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END ) AS ACCESS_DISTRIBUTION,
-   x1.DISTINCT_USERS_DEVICES AS DISTINCT_USERS_DEVICES
-from (
- select
-    x5.* 
-    from(
-        select
-         t3.geography_id as GEOGRAPHY_ID,
-         x4.*
-        from(
-            select
-             t2.REGIONNAME as REGIONNAME,
-             t2.COUNTRY as COUNTRY,
-             t2.STATE as STATE,
-             x3.*
-            from(
-                 select
-                 t2.daily_day as DATE,
-                 x2.*
-                from(
-                         select 
-                              C.DEVICES as DISTINCT_USERS_DEVICES,
-                              C.TOT,
-                              B.dt_reference as dt_reference,
-                              B.deviceid as deviceid,
-                              B.userid as userid
-                        FROM(
-                              select count(A.DEVICES) AS TOT, A.deviceid, A.DEVICES
-                              FROM(
-                                    SELECT t1.deviceid, COUNT(distinct(t1.deviceid)) AS DEVICES
-                                    FROM
-                                    target_login t1
-                                    where t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                                    GROUP BY t1.deviceid
-                                 ) A
-                             GROUP BY A.DEVICES, A.deviceid
-                            )C 
-                             Left outer join target_login B ON C.deviceid = B.deviceid
-                    )x2
-                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                )x3
-            left outer join target_profiling t2
-            on t2.userid = x3.userid
-            )x4
-        left outer join dim_geography t3
-        on x4.REGIONNAME = t3.CONTINENT
-            AND x4.COUNTRY = t3.STATE
-            AND x4.STATE = t3.REGION
-        )x5
-    )x1
-group by x1.DATE, nvl(geography_id, 0), x1.DISTINCT_USERS_DEVICES, CASE 
-   WHEN (x1.TOT) = 1 THEN '1'
-   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
-   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
-   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
-   ELSE '>20'
-   END;
-   
--- --------------------------------------
--- FULL OUTER JOIN OF TEMP TABLES
--- --------------------------------------    
-
-INSERT INTO TABLE agg_accesses
-SELECT
-  nvl(temp3.context, t4.context)                          as context,
-  nvl(temp3.date, t4.date)                                as date,
-  ""                                                      as TIMEBAND,
-  ""                                                      as PLATFORM,
-  nvl(temp3.geography_id, t4.geography_id)                as geography_id,
-  ""                                                      as APP_VERSION,
-  nvl(temp3.access_distribution, t4.access_distribution)  as access_distribution,
-  (if(1 == 2, 1, 0))                                      as LOGGED_ACCESSES,
-  (if(1 == 2, 1, 0))                                      as FAILED_LOGINS,
-  (if(1 == 2, 1, 0))                                      as LOGGED_ACCESSES_NO_VIDEO,
-  nvl(temp3.LOGGED_USERS, 0)                              as LOGGED_USERS,
-  nvl(temp3.DEVICES, 0)                                   as DEVICES,
-  nvl(t4.DISTINCT_USERS_DEVICES, 0)                       as DISTINCT_USERS_DEVICES,
-  (if(1 == 2, 1, 0))                                      as NEW_LOGGED_USERS,
-  ""                                                      as MAX_CONCURRENCY_TIME_PEAK,
-  (if(1 == 2, 1, 0))                                      as MAX_LOGGED_USERS_CONCURRENCY,
-  nvl(temp3.LOGGED_USERS_MORE_PLATFORMS, 0 )              as LOGGED_USERS_MORE_PLATFORMS,
-  (if(1 == 2, 1, 0))                                      as LOGGED_APP_STARTUP,
-  (if(1 == 2, 1, 0))                                      as ANONYMOUS_ACCESSES,
-  (if(1 == 2, 1, 0))                                      as ANONYMOUS_ACCESSES_NO_VIDEO,
-  nvl(temp3.anonymous_users, 0)                           as ANONYMOUS_USERS,
-  (if(1 == 2, 1, 0))                                      as NEW_ANONYMOUS_USERS,
-  (if(1 == 2, 1, 0))                                      as MAX_ANONYMOUS_USERS_CONCURRENCY,
-  (if(1 == 2, 1, 0))                                      as ANONYMOUS_APP_STARTUP
-FROM(
-    SELECT
-        nvl(temp2.context, t3.context)                         as context,
-        nvl(temp2.date, t3.date)                               as date,
-        nvl(temp2.geography_id, t3.geography_id)               as geography_id,
-        nvl(temp2.access_distribution, t3.access_distribution) as access_distribution,
-        nvl(temp2.logged_users, 0)                             as LOGGED_USERS,
-        nvl(temp2.logged_users_more_platforms, 0 )             as LOGGED_USERS_MORE_PLATFORMS,
-        nvl(temp2.anonymous_users, 0)                            as ANONYMOUS_USERS,
-        nvl(t3.devices, 0)                                        as DEVICES
-    FROM(
-        SELECT
-          nvl(temp1.context0, t2.context)                         as context,
-          nvl(temp1.date0, t2.date)                               as date,
-          nvl(temp1.geography_id0, t2.geography_id)               as geography_id,
-          nvl(temp1.access_distribution0, t2.access_distribution) as access_distribution,
-          nvl(temp1.logged_users0, 0)                             as LOGGED_USERS,
-          nvl(temp1.logged_users_more_platforms0, 0 )             as LOGGED_USERS_MORE_PLATFORMS,
-          nvl(t2.anonymous_users, 0)                              as ANONYMOUS_USERS
-        FROM(
-            SELECT    nvl(t0.context, t1.context)                                         AS context0, 
-                      nvl(t0.date, t1.date)                                               AS date0, 
-                      nvl(t0.geography_id, t1.geography_id)                               AS geography_id0, 
-                      nvl(t0.access_distribution, t1.access_distribution)                 AS access_distribution0,
-                      nvl(t0.logged_users, 0)                                             AS logged_users0,
-                      nvl(t1.logged_users_more_platforms, 0)                              AS logged_users_more_platforms0
-            FROM   accesses_weekly_01 t0 
-            FULL OUTER JOIN accesses_weekly_02 t1 
-                ON   ( t0.context = t1.context ) 
-                AND  ( t0.date = t1.date ) 
-                AND  ( t0.geography_id = t1.geography_id ) 
-                AND  ( t0.access_distribution = t1.access_distribution ) 
-         )temp1  
-         FULL OUTER JOIN accesses_weekly_03 t2
-            ON   ( temp1.context0 = t2.context ) 
-            AND  ( temp1.date0 = t2.date ) 
-            AND  ( temp1.geography_id0 = t2.geography_id ) 
-            AND  ( temp1.access_distribution0 = t2.access_distribution )
-    )temp2
-    FULL OUTER JOIN accesses_weekly_04 t3
-        ON   ( temp2.context = t3.context ) 
-        AND  ( temp2.date = t3.date ) 
-        AND  ( temp2.geography_id = t3.geography_id ) 
-        AND  ( temp2.access_distribution = t3.access_distribution )
-)temp3
-FULL OUTER JOIN accesses_weekly_05 t4
-    ON   ( temp3.context = t4.context ) 
-    AND  ( temp3.date = t4.date ) 
-    AND  ( temp3.geography_id = t4.geography_id )
-    AND  ( temp3.access_distribution = t4.access_distribution );
-	
+-- inserting data into table agg_advertising
+INSERT OVERWRITE TABLE agg_advertising
+SELECT   context, 
+         date, 
+         timeband, 
+         platform, 
+         ad_format, 
+         geography_id, 
+         common_content_id, 
+         advertising_id, 
+         sum(logged_impressions)             AS logged_impressions, 
+         sum(logged_clicks_through)          AS logged_clicks_through, 
+         sum(logged_viewed_ads)              AS logged_viewed_ads, 
+         sum(logged_skipped_ads)             AS logged_skipped_ads, 
+         count(DISTINCT(logged_drop_off))    AS logged_drop_off, 
+         logged_users, 
+         sum(anonymous_impressions)          AS anonymous_impressions, 
+         sum(anonymous_clicks_through)       AS anonymous_clicks_through, 
+         sum(anonymous_viewed_ads)           AS anonymous_viewed_ads, 
+         sum(anonymous_skipped_ads)          AS anonymous_skipped_ads, 
+         count(DISTINCT(anonymous_drop_off)) AS anonymous_drop_off, 
+         anonymous_users 
+  FROM   (
+    SELECT "Advertising"                                                                AS context, 
+           final.daily_day                                                              AS date, 
+           GetTimeBand(final.timestamp)                                                 AS timeband, 
+           final.platform                                                               AS platform, 
+           final.ad_format                                                              AS ad_format, 
+           nvl(final.common_content_id, 0)                                              AS common_content_id, 
+           nvl(final.geography_id, 0)                                                   AS geography_id, 
+           final.ad_id                                                                  AS advertising_id, 
+           (IF(final.user_id IS NOT NULL, 1, 0))                                        AS logged_impressions, 
+           (IF(final.has_been_clicked = 'Y' AND final.user_id IS NOT NULL, 1, 0))       AS logged_clicks_through, 
+           (IF(final.completion_percentage == 100 AND final.user_id IS NOT NULL, 1, 0)) AS logged_viewed_ads, 
+           (IF(final.has_been_skipped = 'Y' AND final.user_id IS NOT NULL, 1, 0))       AS logged_skipped_ads, 
+           (concat(final.deviceid1, final.sessionid1, final.contentid1))                AS logged_drop_off, 
+           (IF(1 == 2, 1, NULL))                                                        AS logged_users, 
+           (IF(final.completion_percentage == 100 AND final.user_id IS NULL, 1, 0))     AS anonymous_impressions, 
+           (IF(final.has_been_clicked = 'Y' AND final.user_id IS NULL, 1, 0))           AS anonymous_clicks_through, 
+           (IF(final.completion_percentage == 100 AND final.user_id IS NULL, 1, 0))     AS anonymous_viewed_ads, 
+           (IF(final.has_been_skipped = 'Y' AND final.user_id IS NULL, 1, 0))           AS anonymous_skipped_ads, 
+           (concat(final.deviceid3, final.sessionid3, final.contentid3))                AS anonymous_drop_off, 
+           (IF(1 == 2, 1, NULL))                                                        AS anonymous_users 
+    FROM   (
+      SELECT * FROM   (
+        SELECT * FROM   (
+          SELECT * FROM   (
+            SELECT * FROM   (
+              SELECT
+                j1.dt_reference, 
+                j1.timestamp, 
+                j1.user_id, 
+                j1.device_id, 
+                j1.session_id, 
+                j1.device_containers_id, 
+                j1.ticket_id, 
+                j1.platform, 
+                j1.completion_percentage, 
+                j1.has_been_clicked, 
+                j1.has_been_skipped, 
+                j1.ad_format, 
+                j1.shares_aliases, 
+                j1.content_id, 
+                j1.ad_id, 
+                j1.tags, 
+                j1.location, 
+                j1.common_content_id, 
+                j1.regionname, 
+                j1.country, 
+                j1.state, 
+                t3.geography_id, 
+                t3.continent, 
+                t3.state AS state2, 
+                t3.region 
+              FROM   (  
+                SELECT
+                  t4.dt_reference, 
+                  t4.timestamp, 
+                  t4.user_id, 
+                  t4.device_id, 
+                  t4.session_id, 
+                  t4.device_containers_id, 
+                  t4.ticket_id, 
+                  t4.platform, 
+                  t4.completion_percentage, 
+                  t4.has_been_clicked, 
+                  t4.has_been_skipped, 
+                  t4.ad_format, 
+                  t4.shares_aliases, 
+                  t4.content_id, 
+                  t4.ad_id, 
+                  t4.tags, 
+                  t4.location, 
+                  t4.common_content_id, 
+                  t5.regionname, 
+                  t5.country, 
+                  t5.state 
+                FROM (
+                  SELECT *
+                  FROM (
+                    SELECT * 
+                    FROM   target_impression 
+                    WHERE  datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), dt_reference) == 1
+                  ) t6
+           LEFT OUTER JOIN dim_common_catalog t7
+                        ON t6.CONTENT_ID = t7.DETAIL_CONTENT_ID
+                ) t4
+          LEFT OUTER JOIN target_profiling t5
+                       ON t4.USER_ID = t5.USERID
+              ) j1
+        LEFT OUTER JOIN dim_geography t3
+                     ON j1.REGIONNAME = t3.CONTINENT
+                    AND j1.COUNTRY = t3.STATE
+                    AND j1.STATE = t3.REGION
+            ) x3
+          ) t1
+      LEFT OUTER JOIN dim_calendar t2
+                   ON t1.dt_reference = t2.day_identifier
+        ) i1
+    LEFT OUTER JOIN (
+      SELECT * 
+      FROM (
+        SELECT *
+        FROM (
+          SELECT
+            ua1.sessionid AS SESSIONID1, 
+            ua1.deviceid  AS DEVICEID1, 
+            ua1.contentid AS CONTENTID1, 
+            ua1.timestamp AS TIMESTAMP1, 
+            ua1.eventtype AS EVENTTYPE1 
+       FROM target_user_action ua1 
+      WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), ua1.dt_reference) == 1 
+        AND ua1.userid != ua1.deviceid
+        ) x1 
+    LEFT OUTER JOIN (
+      SELECT 
+       ua2.sessionid AS SESSIONID2, 
+       ua2.deviceid  AS DEVICEID2, 
+       ua2.contentid AS CONTENTID2, 
+       ua2.eventtype AS EVENTTYPE2 
+  FROM target_user_action ua2 
+ WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), ua2.dt_reference) == 1 
+   AND ua2.eventtype = "VIDEOSTART" 
+   AND ua2.userid != ua2.deviceid
+    ) x2
+                ON x1.SESSIONID1=x2.SESSIONID2
+               AND x1.DEVICEID1=x2.DEVICEID2
+               AND x1.CONTENTID1=x2.CONTENTID2) x3
+             WHERE x3.SESSIONID2 is NULL
+               AND x3.DEVICEID2 is NULL
+               AND x3.CONTENTID2 is NULL
+        ) temp1
+    ON i1.content_id = temp1.contentid1
+   AND i1.session_id = temp1.sessionid1
+   AND i1.device_id = temp1.deviceid1
+      ) temp2
+LEFT OUTER JOIN (
+  SELECT * 
+  FROM (
+    SELECT * 
+    FROM (
+     SELECT ua3.SESSIONID as SESSIONID3, ua3.DEVICEID as DEVICEID3, ua3.CONTENTID as CONTENTID3, ua3.TIMESTAMP as TIMESTAMP3, ua3.EVENTTYPE as EVENTTYPE3
+      FROM test_ac.target_user_action ua3
+    WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), ua3.DT_REFERENCE) == 1
+         AND ua3.USERID = ua3.DEVICEID
+    ) x4
+LEFT OUTER JOIN (
+  SELECT
+    ua4.sessionid AS SESSIONID4, 
+    ua4.deviceid  AS DEVICEID4, 
+    ua4.contentid AS CONTENTID4, 
+    ua4.eventtype AS EVENTTYPE4 
+  FROM target_user_action ua4 
+ WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), ua4.dt_reference) == 1 
+   AND ua4.eventtype = "VIDEOSTART" 
+   AND ua4.userid = ua4.deviceid
+   ) x5
+             ON x4.SESSIONID3=x5.SESSIONID4
+            AND x4.DEVICEID3=x5.DEVICEID4
+            AND x4.CONTENTID3=x5.CONTENTID4) x6
+          WHERE x6.SESSIONID4 is NULL
+            AND x6.DEVICEID4 is NULL
+            AND x6.CONTENTID4 is NULL
+    ) temp3
+           ON temp2.content_id = temp3.contentid3
+          AND temp2.session_id = temp3.sessionid3
+          AND temp2.device_id = temp3.deviceid3) final) a
+     GROUP BY 
+       context,
+       date,
+       timeband,
+       platform,
+       ad_format,
+       geography_id,
+       common_content_id,
+       advertising_id,
+       logged_users,
+       anonymous_users;
