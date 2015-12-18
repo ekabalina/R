@@ -1,131 +1,746 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Accesses.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Accesses_Daily.hql
 -- Created on:    05/11/2015
 -- Author:        Nayak, Vinayak
--- Purpose:       Process to calculate the Accesses Aggregate table
--- ----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Accesses Aggregate (Daily) table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-
-drop temporary function GetTimeBand;
-create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
-
--- creating the table to store the Accesses's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_accesses (
+-- creating a temporary table to store the 1^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_01 (
   CONTEXT STRING,
-  DATE STRING,
-  TIMEBAND STRING,
-  PLATFORM STRING,
+  DATE DATE,
   GEOGRAPHY_ID STRING,
-  APP_VERSION STRING,
-  ACCESSES_DISTRIBUTION STRING,
-  LOGGED_ACCESSES INT,
-  FAILED_LOGINS INT,
-  LOGGED_ACCESSES_NO_VIDEO INT,
-  LOGGED_USERS INT,
-  NEW_LOGGED_USERS INT,
-  MAX_CONCURRENCY_TIME_PEAK STRING,
-  MAX_LOGGED_USERS_CONCURRENCY INT,
-  LOGGED_USERS_MORE_PLATFORMS INT,
-  DEVICES INT,
-  DISTINCT_USERS_DEVICES INT,
-  LOGGED_APP_STARTUP INT,
-  ANONYMOUS_ACCESSES INT,
-  ANONYMOUS_ACCESSES_NO_VIDEO INT,
-  ANONYMOUS_USERS INT,
-  NEW_ANONYMOUS_USERS INT,
-  MAX_ANONYMOUS_USERS_CONCURRENCY INT,
-  ANONYMOUS_APP_STARTUP INT
+  ACCESS_DISTRIBUTION STRING,
+  LOGGED_USERS INT
 )
 ROW FORMAT DELIMITED 
 FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n' 
+LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/output';
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_01';
 
-INSERT OVERWRITE TABLE agg_accesses
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_01
+-- LOGGED_USERS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE accesses_01
 SELECT
-  "Accesses"                                                                             AS CONTEXT,
-  x1.date                                                                                AS DATE,
-  GetTimeBand(x1.timestamp)                                                              AS TIMEBAND,
-  x1.channel                                                                             AS PLATFORM,
-  nvl(geography_id, 0)                                                                   AS GEOGRAPHY_ID,
-  x1.appversion                                                                          AS APP_VERSION,
-  ""                                                                                     AS ACCESSES_DISTRIBUTION,
-  sum(if(x1.userid != x1.deviceid, 1, 0))                                                AS LOGGED_ACCESSES,
-  sum(if(x1.userid != x1.deviceid AND x1.loginsuccess = 'N', 1, 0))                      AS FAILED_LOGINS,
-  sum(if(x1.userid != x1.deviceid AND x1.userid is null AND x1.sessionid is null, 1, 0)) AS LOGGED_ACCESSES_NO_VIDEO,
-  (if(1 == 2, 1, null))                                                                  AS LOGGED_USERS,
-  (if(1 == 2, 1, null))                                                                  AS NEW_LOGGED_USERS,
-  x1.minute                                                                              AS MAX_CONCURRENCY_TIME_PEAK,
-  sum(if(x1.userid != x1.deviceid, 1, 0))                                                AS MAX_LOGGED_USERS_CONCURRENCY,
-  (if(1 == 2, 1, null))                                                                  AS LOGGED_USERS_MORE_PLATFORMS,
-  (if(1 == 2, 1, null))                                                                  AS DEVICES,
-  (if(1 == 2, 1, null))                                                                  AS DISTINCT_USERS_DEVICES,
-  sum(if(x1.userid != x1.deviceid AND x1.eventtype = 'APPLICATIONSTARTUP', 1, 0))        AS LOGGED_APP_STARTUP,
-  sum (if(x1.userid = x1.deviceid, 1, 0))                                                AS ANONYMOUS_ACCESSES,
-  sum(if(x1.userid = x1.deviceid AND x1.userid is null AND x1.sessionid is null, 1, 0))  AS ANONYMOUS_ACCESSES_NO_VIDEO,
-  (if(1 == 2, 1, null))                                                                  AS ANONYMOUS_USERS,
-  (if(1 == 2, 1, null))                                                                  AS NEW_ANONYMOUS_USERS,
-  sum(if(x1.userid = x1.deviceid, 1, 0))                                                 AS MAX_ANONYMOUS_USERS_CONCURRENCY,
-  sum(if(x1.userid = x1.deviceid AND x1.eventtype = 'APPLICATIONSTARTUP', 1, 0))         AS ANONYMOUS_APP_STARTUP
-FROM (
-     SELECT
-            x5.*, t4.eventtype
-       FROM (
-            SELECT
-                   t3.geography_id AS GEOGRAPHY_ID,
-                   x4.*
-              FROM (
-                   SELECT
-                          t2.REGIONNAME AS REGIONNAME,
-                          t2.COUNTRY    AS COUNTRY,
-                          t2.STATE      AS STATE,
-                          x3.*
-                     FROM (
-                          SELECT
-                                 t2.daily_day AS DATE,
-                                 x2.*
-                            FROM (
-                                 SELECT
-                                        A.minute       AS minute,
-                                        B.channel      AS channel,
-                                        B.deviceid     AS deviceid,
-                                        B.userid       AS userid,
-                                        B.appversion   AS appversion,
-                                        B.dt_reference AS dt_reference,
-                                        B.timestamp    AS timestamp,
-                                        B.loginsuccess AS loginsuccess,
-                                        B.sessionid    AS sessionid
-                                   FROM (
-                                        SELECT
-                                               concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp)) AS minute,
-                                               count(t1.USERID)                                                              AS num
-                                          FROM target_login t1
-                                         WHERE t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                                      GROUP BY concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp))
-                                       SORT BY num desc
-                                         LIMIT 1
-                                        ) A
-                              LEFT JOIN target_login B ON A.minute=concat(to_date(B.timestamp),' ',hour(B.timestamp),':',minute(B.timestamp))
-                            ) x2
-                LEFT OUTER JOIN dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                          WHERE x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                        ) x3
-            LEFT OUTER JOIN target_profiling t2 on t2.userid = x3.userid
-                    ) x4
-        LEFT OUTER JOIN dim_geography t3 on x4.REGIONNAME = t3.CONTINENT
+  "Daily Accesses" as CONTEXT,
+  x1.DATE as DATE,
+  nvl(geography_id, 0) as GEOGRAPHY_ID,
+  (CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END ) AS ACCESS_DISTRIBUTION,
+   x1.LOGGED_USERS AS LOGGED_USERS
+from (
+ select
+    x5.* 
+    from(
+        select
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select
+                 t2.daily_day as DATE,
+                 x2.*
+                from(
+                         select 
+                              C.LOGGED_USERS,
+                              C.TOT,
+                              B.dt_reference as dt_reference,
+                              B.userid as userid
+                        FROM(
+                              select SUM(A.LOGGED_USERS) AS TOT, A.userid, A.LOGGED_USERS
+                              FROM(
+                                    SELECT t1.userid, COUNT(t1.userid) AS LOGGED_USERS
+                                    FROM
+                                    target_login t1
+                                    where t1.userid != t1.deviceid AND t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    GROUP BY t1.userid
+                                 ) A
+                             GROUP BY A.LOGGED_USERS, A.userid
+                            )C 
+                             Left outer join target_login B ON C.userid = B.userid
+                    )x2
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            left outer join target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        left outer join dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
             AND x4.COUNTRY = t3.STATE
             AND x4.STATE = t3.REGION
-            ) x5
-    LEFT OUTER JOIN target_user_action t4 on t4.userid = x5.userid AND x5.sessionid = t4.sessionid
-              WHERE t4.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-    ) x1
-GROUP BY
-  x1.date,
-  x1.timestamp,
-  x1.channel,
-  x1.geography_id,
-  x1.appversion,
-  x1.minute;
+        )x5
+    )x1
+group by x1.DATE, nvl(geography_id, 0), x1.LOGGED_USERS, CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END;
+
+-- creating a temporary table to store the 2^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_02 (
+  CONTEXT STRING,
+  DATE DATE,
+  GEOGRAPHY_ID STRING,
+  ACCESS_DISTRIBUTION STRING,
+  NEW_LOGGED_USERS INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_02'; 
+
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_02
+-- NEW_LOGGED_USERS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE accesses_02
+SELECT 
+  "Daily Accesses" as CONTEXT,
+  x1.DATE as DATE,
+  nvl(geography_id, 0) as GEOGRAPHY_ID,  
+  (CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END ) AS ACCESS_DISTRIBUTION,
+   x1.NEW_LOGGED_USERS AS NEW_LOGGED_USERS
+from (
+ select
+    x5.* 
+    from(
+        select
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select
+                 t2.daily_day as DATE,
+                 x2.*
+                from(
+                         select 
+                              C.NEW_LOGGED_USERS,
+                              C.TOT,
+                              B.dt_reference as dt_reference,
+                              B.userid as userid
+                        FROM(
+                              select SUM(A.NEW_LOGGED_USERS) AS TOT, A.userid, A.NEW_LOGGED_USERS
+                              FROM(
+                                    SELECT t1.userid, COUNT(t1.userid) AS NEW_LOGGED_USERS
+                                    FROM
+                                    target_login t1 left outer join target_customer_base_login t0
+                                    ON t1.userid = t0.userid AND to_date(t0.login_date) = t1.dt_reference
+                                    where t1.userid != t1.deviceid AND t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    AND to_date(t0.login_date) = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    GROUP BY t1.userid
+                                 ) A
+                             GROUP BY A.NEW_LOGGED_USERS, A.userid
+                            )C
+                             Left outer join target_login B ON C.userid = B.userid
+                    )x2
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            left outer join target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        left outer join dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+        )x5
+    )x1
+group by x1.DATE, nvl(geography_id, 0), x1.NEW_LOGGED_USERS, CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END;
+   
+-- creating a temporary table to store the 3^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_03 (
+  CONTEXT STRING,
+  DATE DATE,
+  GEOGRAPHY_ID STRING,
+  ACCESS_DISTRIBUTION STRING,
+  LOGGED_USERS_MORE_PLATFORMS INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_03';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_03
+-- LOGGED_USERS_MORE_PLATFORMS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE accesses_03
+SELECT
+  "Daily Accesses" as CONTEXT,
+  x1.DATE as DATE,
+  nvl(geography_id, 0) as GEOGRAPHY_ID,  
+  (CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END ) AS ACCESS_DISTRIBUTION,
+   x1.LOGGED_USERS_MORE_PLATFORMS AS LOGGED_USERS_MORE_PLATFORMS
+from (
+ select
+    x5.* 
+    from(
+        select
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select
+                 t2.daily_day as DATE,
+                 x2.*
+                from(
+                         select 
+                              C.LOGGED_USERS_MORE_PLATFORMS,
+                              C.TOT,
+                              B.dt_reference as dt_reference,
+                              B.userid as userid
+                        FROM(
+                              select SUM(A.LOGGED_USERS_MORE_PLATFORMS) AS TOT, A.userid, A.LOGGED_USERS_MORE_PLATFORMS
+                              FROM(
+                                    SELECT t1.userid, COUNT(t1.userid) AS LOGGED_USERS_MORE_PLATFORMS
+                                    FROM
+                                    target_login t1
+                                    where t1.userid != t1.deviceid AND t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    GROUP BY t1.userid, t1.channel
+                                    HAVING LOGGED_USERS_MORE_PLATFORMS > 1
+                                 ) A
+                             GROUP BY A.LOGGED_USERS_MORE_PLATFORMS, A.userid
+                            )C
+                             Left outer join target_login B ON C.userid = B.userid
+                    )x2
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            left outer join target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        left outer join dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+        )x5
+    )x1
+group by x1.DATE, nvl(geography_id, 0), x1.LOGGED_USERS_MORE_PLATFORMS, CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END;
+
+-- creating a temporary table to store the 4^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_04 (
+  CONTEXT STRING,
+  DATE DATE,
+  GEOGRAPHY_ID STRING,
+  ACCESS_DISTRIBUTION STRING,
+  ANONYMOUS_USERS INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_04';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_04
+-- ANONYMOUS_USERS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE accesses_04
+SELECT
+  "Daily Accesses" as CONTEXT,
+  x1.DATE as DATE,
+  nvl(geography_id, 0) as GEOGRAPHY_ID,
+  (CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END ) AS ACCESS_DISTRIBUTION,
+   x1.ANONYMOUS_USERS AS ANONYMOUS_USERS
+from (
+ select
+    x5.* 
+    from(
+        select
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select
+                 t2.daily_day as DATE,
+                 x2.*
+                from(
+                         select 
+                              C.ANONYMOUS_USERS,
+                              C.TOT,
+                              B.dt_reference as dt_reference,
+                              B.userid as userid
+                        FROM(
+                              select SUM(A.ANONYMOUS_USERS) AS TOT, A.userid, A.ANONYMOUS_USERS
+                              FROM(
+                                    SELECT t1.userid, COUNT(t1.userid) AS ANONYMOUS_USERS
+                                    FROM
+                                    target_login t1
+                                    where t1.userid = t1.deviceid AND t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    GROUP BY t1.userid
+                                 ) A
+                             GROUP BY A.ANONYMOUS_USERS, A.userid
+                            )C 
+                             Left outer join target_login B ON C.userid = B.userid
+                    )x2
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            left outer join target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        left outer join dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+        )x5
+    )x1
+group by x1.DATE, nvl(geography_id, 0), x1.ANONYMOUS_USERS, CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END;
+   
+-- creating a temporary table to store the 5^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_05 (
+  CONTEXT STRING,
+  DATE DATE,
+  GEOGRAPHY_ID STRING,
+  ACCESS_DISTRIBUTION STRING,
+  NEW_ANONYMOUS_USERS INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_05';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_05
+-- NEW_ANONYMOUS_USERS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE accesses_05
+SELECT
+  "Daily Accesses" as CONTEXT,
+  x1.DATE as DATE,
+  nvl(geography_id, 0) as GEOGRAPHY_ID,    
+  (CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END ) AS ACCESS_DISTRIBUTION,
+   x1.NEW_ANONYMOUS_USERS AS NEW_ANONYMOUS_USERS
+from (
+ select
+    x5.* 
+    from(
+        select
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select
+                 t2.daily_day as DATE,
+                 x2.*
+                from(
+                         select 
+                              C.NEW_ANONYMOUS_USERS,
+                              C.TOT,
+                              B.dt_reference as dt_reference,
+                              B.userid as userid
+                        FROM(
+                              select SUM(A.NEW_ANONYMOUS_USERS) AS TOT, A.deviceid, A.NEW_ANONYMOUS_USERS
+                              FROM(
+                                    SELECT t1.deviceid, COUNT(t1.deviceid) AS NEW_ANONYMOUS_USERS
+                                    FROM
+                                    target_login t1 left outer join target_customer_base_device t0
+                                    ON t1.deviceid = t0.deviceid AND to_date(t0.first_session_date) = t1.dt_reference
+                                    where t1.userid != t1.deviceid AND t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    AND to_date(t0.first_session_date) = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    GROUP BY t1.deviceid
+                                 ) A
+                             GROUP BY A.NEW_ANONYMOUS_USERS, A.deviceid
+                            )C 
+                             Left outer join target_login B ON C.deviceid = B.deviceid
+                    )x2
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            left outer join target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        left outer join dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+        )x5
+    )x1
+group by x1.DATE, nvl(geography_id, 0), x1.NEW_ANONYMOUS_USERS, CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END;
+
+-- creating a temporary table to store the 6^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_06 (
+  CONTEXT STRING,
+  DATE DATE,
+  GEOGRAPHY_ID STRING,
+  ACCESS_DISTRIBUTION STRING,
+  DEVICES INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_06';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_06
+-- DEVICES
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE accesses_06
+SELECT
+  "Daily Accesses" as CONTEXT,
+  x1.DATE as DATE,
+  nvl(geography_id, 0) as GEOGRAPHY_ID,
+  (CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END ) AS ACCESS_DISTRIBUTION,
+   x1.DEVICES AS DEVICES
+from (
+ select
+    x5.* 
+    from(
+        select
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select
+                 t2.daily_day as DATE,
+                 x2.*
+                from(
+                         select 
+                              C.DEVICES,
+                              C.TOT,
+                              B.dt_reference as dt_reference,
+                              B.deviceid as deviceid,
+                              B.userid as userid
+                        FROM(
+                              select count(A.DEVICES) AS TOT, A.deviceid, A.DEVICES
+                              FROM(
+                                    SELECT t1.deviceid, COUNT(t1.deviceid) AS DEVICES
+                                    FROM
+                                    target_login t1
+                                    where t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    GROUP BY t1.deviceid
+                                 ) A
+                             GROUP BY A.DEVICES, A.deviceid
+                            )C 
+                             Left outer join target_login B ON C.deviceid = B.deviceid
+                    )x2
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            left outer join target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        left outer join dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+        )x5
+    )x1
+group by x1.DATE, nvl(geography_id, 0), x1.DEVICES, CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END;
+
+-- creating a temporary table to store the 7^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_07 (
+  CONTEXT STRING,
+  DATE DATE,
+  GEOGRAPHY_ID STRING,
+  ACCESS_DISTRIBUTION STRING,
+  DISTINCT_USERS_DEVICES INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_07';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_07
+-- DISTINCT_USERS_DEVICES
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE accesses_07
+SELECT
+  "Daily Accesses" as CONTEXT,
+  x1.DATE as DATE,
+  nvl(geography_id, 0) as GEOGRAPHY_ID,
+  (CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END ) AS ACCESS_DISTRIBUTION,
+   x1.DISTINCT_USERS_DEVICES AS DISTINCT_USERS_DEVICES
+from (
+ select
+    x5.* 
+    from(
+        select
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select
+                 t2.daily_day as DATE,
+                 x2.*
+                from(
+                         select 
+                              C.DEVICES as DISTINCT_USERS_DEVICES,
+                              C.TOT,
+                              B.dt_reference as dt_reference,
+                              B.deviceid as deviceid,
+                              B.userid as userid
+                        FROM(
+                              select count(A.DEVICES) AS TOT, A.deviceid, A.DEVICES
+                              FROM(
+                                    SELECT t1.deviceid, COUNT(distinct(t1.deviceid)) AS DEVICES
+                                    FROM
+                                    target_login t1
+                                    where t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    GROUP BY t1.deviceid
+                                 ) A
+                             GROUP BY A.DEVICES, A.deviceid
+                            )C 
+                             Left outer join target_login B ON C.deviceid = B.deviceid
+                    )x2
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            left outer join target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        left outer join dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+        )x5
+    )x1
+group by x1.DATE, nvl(geography_id, 0), x1.DISTINCT_USERS_DEVICES, CASE 
+   WHEN (x1.TOT) = 1 THEN '1'
+   WHEN (x1.TOT) > 1 AND TOT < 6 THEN '2 to 5'
+   WHEN (x1.TOT) > 5 AND TOT < 11 THEN '6 to 10'
+   WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
+   ELSE '>20'
+   END;
+
+-------------------------------------------------------------------------------
+-- Output table name: agg_accesses
+-------------------------------------------------------------------------------
+
+INSERT INTO TABLE agg_accesses
+SELECT
+  nvl(temp5.context2, t6.context)                         AS context,
+  nvl(temp5.date2, t6.date)                               AS date,
+  ""                                                      AS TIMEBAND,
+  ""                                                      AS PLATFORM,
+  nvl(temp5.geography_id2, t6.geography_id)               AS geography_id,
+  ""                                                      AS APP_VERSION,
+  nvl(temp5.access_distribution2, t6.access_distribution) AS accesses_distribution,
+  (if(1 == 2, 1, 0))                                      AS LOGGED_ACCESSES,
+  (if(1 == 2, 1, 0))                                      AS FAILED_LOGINS,
+  (if(1 == 2, 1, 0))                                      AS LOGGED_ACCESSES_NO_VIDEO,
+  nvl(temp5.logged_users2, 0)                             AS LOGGED_USERS,
+  nvl(temp5.new_logged_users2, 0)                         AS NEW_LOGGED_USERS,
+  ""                                                      AS MAX_CONCURRENCY_TIME_PEAK,
+  (if(1 == 2, 1, 0))                                      AS MAX_LOGGED_USERS_CONCURRENCY,
+  nvl(temp5.logged_users_more_platforms2, 0 )             AS LOGGED_USERS_MORE_PLATFORMS,
+  nvl(temp5.devices, 0)                                   AS DEVICES,
+  nvl(t6.DISTINCT_USERS_DEVICES, 0)                       AS DISTINCT_USERS_DEVICES,
+  (if(1 == 2, 1, 0))                                      AS LOGGED_APP_STARTUP,
+  (if(1 == 2, 1, 0))                                      AS ANONYMOUS_ACCESSES,
+  (if(1 == 2, 1, 0))                                      AS ANONYMOUS_ACCESSES_NO_VIDEO,
+  nvl(temp5.anonymous_users2, 0)                          AS ANONYMOUS_USERS,
+  nvl(temp5.new_anonymous_users, 0)                       AS NEW_ANONYMOUS_USERS,
+  (if(1 == 2, 1, 0))                                      AS MAX_ANONYMOUS_USERS_CONCURRENCY,
+  (if(1 == 2, 1, 0))                                      AS ANONYMOUS_APP_STARTUP
+FROM(
+    SELECT
+        nvl(temp4.context2, t5.context)                         AS context2, 
+        nvl(temp4.date2, t5.date)                               AS date2, 
+        nvl(temp4.geography_id2, t5.geography_id)               AS geography_id2, 
+        nvl(temp4.access_distribution2, t5.access_distribution) AS access_distribution2,
+        nvl(temp4.logged_users2, 0)                             AS logged_users2,
+        nvl(temp4.new_logged_users2, 0)                         AS new_logged_users2,
+        nvl(temp4.logged_users_more_platforms2, 0)              AS logged_users_more_platforms2,
+        nvl(temp4.anonymous_users2, 0)                          AS anonymous_users2,
+        nvl(temp4.new_anonymous_users, 0)                       AS new_anonymous_users,
+        nvl(t5.devices, 0)                                      AS devices
+    FROM(
+        SELECT 
+            nvl(temp3.context2, t4.context)                         AS context2, 
+            nvl(temp3.date2, t4.date)                               AS date2, 
+            nvl(temp3.geography_id2, t4.geography_id)               AS geography_id2, 
+            nvl(temp3.access_distribution2, t4.access_distribution) AS access_distribution2,
+            nvl(temp3.logged_users2, 0)                             AS logged_users2,
+            nvl(temp3.new_logged_users2, 0)                         AS new_logged_users2,
+            nvl(temp3.logged_users_more_platforms2, 0)              AS logged_users_more_platforms2,
+            nvl(temp3.anonymous_users2, 0)                          AS anonymous_users2,
+            nvl(t4.new_anonymous_users, 0)                          AS new_anonymous_users
+        FROM(
+            SELECT    
+                nvl(temp2.context1, t3.context)                         AS context2, 
+                nvl(temp2.date1, t3.date)                               AS date2, 
+                nvl(temp2.geography_id1, t3.geography_id)               AS geography_id2, 
+                nvl(temp2.access_distribution1, t3.access_distribution) AS access_distribution2,
+                nvl(temp2.logged_users1, 0)                             AS logged_users2,
+                nvl(temp2.new_logged_users1, 0)                         AS new_logged_users2,
+                nvl(temp2.logged_users_more_platforms1, 0)              AS logged_users_more_platforms2,
+                nvl(t3.anonymous_users, 0)                              AS anonymous_users2
+            FROM(
+                SELECT    
+                    nvl(temp1.context0, t2.context)                         AS context1, 
+                    nvl(temp1.date0, t2.date)                               AS date1, 
+                    nvl(temp1.geography_id0, t2.geography_id)               AS geography_id1, 
+                    nvl(temp1.access_distribution0, t2.access_distribution) AS access_distribution1,
+                    nvl(temp1.logged_users0, 0)                             AS logged_users1,
+                    nvl(temp1.new_logged_users0, 0)                         AS new_logged_users1,
+                    nvl(t2.logged_users_more_platforms, 0)                  AS logged_users_more_platforms1
+                FROM(    
+                    SELECT
+					    nvl(t0.context, t1.context)                             AS context0, 
+                        nvl(t0.date, t1.date)                                   AS date0, 
+                        nvl(t0.geography_id, t1.geography_id)                   AS geography_id0, 
+                        nvl(t0.access_distribution, t1.access_distribution)     AS access_distribution0,
+                        nvl(t0.logged_users, 0)                                 AS logged_users0,
+                        nvl(t1.new_logged_users, 0)                             AS new_logged_users0
+                    FROM accesses_01 t0 
+                    FULL OUTER JOIN accesses_02 t1 
+                                 ON ( t0.context = t1.context ) 
+                                AND ( t0.date = t1.date ) 
+                                AND ( t0.geography_id = t1.geography_id ) 
+                                AND ( t0.access_distribution = t1.access_distribution ) 
+                    ) temp1
+                FULL OUTER JOIN accesses_03 t2
+                             ON ( temp1.context0 = t2.context ) 
+                            AND ( temp1.date0 = t2.date ) 
+                            AND ( temp1.geography_id0 = t2.geography_id ) 
+                            AND ( temp1.access_distribution0 = t2.access_distribution ) 
+                ) temp2     
+            FULL OUTER JOIN accesses_04 t3
+                         ON ( temp2.context1 = t3.context ) 
+                        AND ( temp2.date1 = t3.date ) 
+                        AND ( temp2.geography_id1 = t3.geography_id ) 
+                        AND ( temp2.access_distribution1 = t3.access_distribution ) 
+            ) temp3 
+        FULL OUTER JOIN accesses_05 t4
+                     ON ( temp3.context2 = t4.context ) 
+                    AND ( temp3.date2 = t4.date ) 
+                    AND ( temp3.geography_id2 = t4.geography_id ) 
+                    AND ( temp3.access_distribution2 = t4.access_distribution )
+        ) temp4 
+    FULL OUTER JOIN accesses_06 t5
+                 ON ( temp4.context2 = t5.context ) 
+                AND ( temp4.date2 = t5.date ) 
+                AND ( temp4.geography_id2 = t5.geography_id ) 
+                AND ( temp4.access_distribution2 = t5.access_distribution )
+    ) temp5
+FULL OUTER JOIN accesses_07 t6
+             ON ( temp5.context2 = t6.context ) 
+            AND ( temp5.date2 = t6.date ) 
+            AND ( temp5.geography_id2 = t6.geography_id ) 
+            AND ( temp5.access_distribution2 = t6.access_distribution );
