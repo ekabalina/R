@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Purchases.hql
 -- Created on:    04/11/2015
 -- Author:        Geetha Nair, Parvathy
 -- Purpose:       Process to calculate the Purchases Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creation of aggregate Purchases table
 CREATE EXTERNAL TABLE IF NOT EXISTS agg_purchases (
