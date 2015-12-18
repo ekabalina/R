@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Advertising_Monthly.hql
 -- Created on:    03/11/2015
 -- Author:        Calabrese, Alessio
 -- Purpose:       Process to calculate the Advertising Aggregate (Monthly) table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
-add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function GetTimeBand;
 drop temporary function Week_c_top;
