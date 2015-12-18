@@ -1,39 +1,36 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_nPVR_Play_Latency.hql
--- Created on:    06/11/2015
--- Author:        Geetha Nair, Parvathy
--- Purpose:       Process to calculate the nPVR Play Latency Aggregate table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_nPVR_Recording_Retention.hql
+-- Created on:    09/11/2015
+-- Author:        Venkateswarlu, U.
+-- Purpose:       Process to calculate the nPVR Delete Latency Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
-drop temporary function GetPlayLatency;
-create temporary function GetPlayLatency as 'com.accenture.AVSA.hive.UDF.GetPlayLatency';
-
-drop temporary function GetTimeBand;
-create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
+drop temporary function GetDeleteLatency;
+create temporary function GetDeleteLatency as 'com.accenture.AVSA.hive.UDF.GetDeleteLatency';
 
 -- inserting data into table agg_npvr
 INSERT INTO TABLE agg_npvr
-SELECT   "nPVR Play Latency"                               AS CONTEXT, 
-         t2.daily_day                                      AS DATE,
-         ""                                                AS TIMEBAND,
-         t1.channel                                        AS PLATFORM,
-         nvl(t5.geography_id, 0)                           AS GEOGRAPHY_ID,
-         t1.device_type                                    AS DEVICE_TYPE,
-         ""                                                AS STATUS,
-         t1.epg_channel                                    AS NPVR_CHANNEL,
-         t1.epg_show                                       AS NPVR_SHOW,
-         GetPlayLatency(t1.airing_starttime, t1.timestamp) AS PLAY_LATENCY,
-         ""                                                AS DELETION_LATENCY,
-         ( IF(1 == 2, 1, NULL) )                           AS NPVR_REQUESTS,
-         count(t1.user_id)                                 AS NPVR_VIEWS,
-         ( IF(1 == 2, 1, NULL) )                           AS NPVR_DURATION_MIN,
-         ( IF(1 == 2, 1, NULL) )                           AS NPVR_DELETIONS,
-         ( IF(1 == 2, 1, NULL) )                           AS MAX_CONCURRENCY_TIME_PEAK,
-         ( IF(1 == 2, 1, NULL) )                           AS MAX_NPVR_CONCURRENCY
-FROM   target_npvr t1 
+SELECT   "nPVR Recording Retention"                 AS CONTEXT, 
+         t2.daily_day                               AS DATE,
+         ""                                         AS TIMEBAND,
+         t1.channel                                 AS PLATFORM,
+         nvl(t5.geography_id, 0)                    AS GEOGRAPHY_ID,
+          t1.device_type                            AS DEVICE_TYPE,
+         ""                                         AS STATUS,
+         t1.epg_channel                             AS NPVR_CHANNEL,
+         t1.epg_show                                AS NPVR_SHOW,
+         ""                                         AS PLAY_LATENCY,
+         GetDeleteLatency(t1.airing_starttime, t1.timestamp)                AS DELETION_LATENCY,
+         ( IF(1 == 2, 1, NULL) )                   AS NPVR_REQUESTS,
+         ( IF(1 == 2, 1, NULL) )                    AS NPVR_VIEWS,
+         ( IF(1 == 2, 1, NULL) )                    AS NPVR_DURATION_MIN,
+         count(t1.user_id)                          AS NPVR_DELETIONS,
+         ( IF(1 == 2, 1, NULL) )                    AS MAX_CONCURRENCY_TIME_PEAK,
+         ( IF(1 == 2, 1, NULL) )                    AS MAX_NPVR_CONCURRENCY
+FROM  target_npvr t1 
        LEFT OUTER JOIN dim_calendar t2 
                     ON ( t1.dt_reference = t2.day_identifier )
        LEFT OUTER JOIN target_profiling t3
@@ -51,4 +48,5 @@ GROUP  BY "nPVR Play Latency",
           t1.device_type,
           t1.epg_channel,
           t1.epg_show,
-          GetPlayLatency(t1.airing_starttime, t1.timestamp);
+          GetDeleteLatency(t1.airing_starttime, t1.timestamp);
+          
