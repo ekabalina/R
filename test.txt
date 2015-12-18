@@ -1,84 +1,141 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Purchases_Weekly.hql
--- Created on:    06/11/2015
--- Author:        Geetha Nair, Parvathy
--- Purpose:       Process to calculate the Purchases Aggregate (Weekly) table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_QoS.hql
+-- Created on:    02/11/2015
+-- Author:        Venkateswarlu, U.
+-- Purpose:       Process to calculate the QoS Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
 
-drop temporary function Week_c_top;
-create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
+drop temporary function GetTimeBand;
+create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
 
--- inserting data into table agg_purcahses
-INSERT INTO TABLE agg_purchases
-SELECT "Weekly Purchases"                AS CONTEXT, 
-       z1.date0                          AS DATE, 
-       ""                                AS PLATFORM, 
-       z1.geography_id0                  AS GEOGRAPHY_ID, 
-       ""                                AS APP_VERSION, 
-       ""                                AS COMMON_CONTENT_ID, 
-       ""                                AS PAYMENT_TYPE, 
-       z1.currency0                      AS CURRENCY, 
-       ( IF(1 == 2, 1, NULL) )           AS PURCHASES, 
-       ( IF(1 == 2, 1, NULL) )           AS REVENUES, 
-       z1.users0                         AS USERS, 
-       ( IF(1 == 2, 1, NULL) )           AS NEW_USERS, 
-       ( IF(1 == 2, 1, NULL) )           AS VIEWS_PURCHASED_CONTENTS, 
-       z1.users_view_purchased_contents0 AS USERS_VIEW_PURCHASED_CONTENTS 
-FROM   (SELECT temp1.date1                     AS date0, 
-               temp1.geography_id1             AS geography_id0, 
-               count(DISTINCT( temp1.users1 )) AS users0, 
-               count(temp2.users2)             AS users_view_purchased_contents0,
-               temp1.currency1                 AS currency0               
-        FROM   (SELECT DISTINCT( concat(t1.userid, t1.contentid) ) AS field1, 
-                               t2.daily_day                        AS date1, 
-                               nvl(t4.geography_id, 0)             AS geography_id1, 
-                               t1.userid                           AS users1,
-                               nvl(t1.currency, 0)                 AS currency1                               
-                FROM   target_purchase t1 
-                       LEFT OUTER JOIN dim_calendar t2 
-                                    ON ( t1.dt_reference = t2.day_identifier ) 
-                       LEFT OUTER JOIN target_profiling t3 
-                                    ON ( t1.userid = t3.userid ) 
-                       LEFT OUTER JOIN dim_geography t4 
-                                    ON ( t3.regionname = t4.continent ) 
-                                       AND ( t3.country = t4.state ) 
-                                       AND ( t3.state = t4.region ) 
-                       LEFT OUTER JOIN dim_common_catalog t5 
-                                    ON ( t1.contentid = t5.detail_content_id ) 
-               where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) >= 1 and
-DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
-                       AND t1.contentid IS NOT NULL) temp1 
-               LEFT OUTER JOIN (SELECT DISTINCT ( t6.userid )                   AS users2, 
-                                                concat(t6.userid, t6.contentid) AS field2 
-                                FROM   target_watching t6 
-                                WHERE  t6.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) ) 
-                                       AND t6.download != 'Y' 
-                                       AND t6.contentid IS NOT NULL) temp2 
-                            ON ( temp1.field1 = temp2.field2 ) 
-        GROUP  BY temp1.date1, 
-                  temp1.geography_id1,
-                  temp1.currency1) z1 
-       FULL OUTER JOIN (SELECT t2.daily_day                 AS date2, 
-                               nvl(t4.geography_id, 0)      AS geography_id2, 
-                               nvl(t1.currency, 0)          AS currency2  
-                        FROM   target_purchase t1 
-                               LEFT OUTER JOIN dim_calendar t2 
-                                            ON ( t1.dt_reference = t2.day_identifier ) 
-                               LEFT OUTER JOIN target_profiling t3 
-                                            ON ( t1.userid = t3.userid ) 
-                               LEFT OUTER JOIN dim_geography t4 
-                                            ON ( t3.regionname = t4.continent ) 
-                                               AND ( t3.country = t4.state ) 
-                                               AND ( t3.state = t4.region ) 
-                        WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) >= 1 and
-DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
-                        GROUP  BY t2.daily_day, 
-                                  nvl(t4.geography_id, 0),
-								  nvl(t1.currency, 0)
-					) z2 
-                    ON ( z1.date0 = z2.date2 ) 
-                       AND ( z1.geography_id0 = z2.geography_id2 )
-                       AND ( z1.currency0 = z2.currency2 );
+-- creation of aggregate QoS table
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_qos (
+  context STRING,
+  date STRING,
+  timeband STRING,
+  platform STRING,
+  geography_id STRING,
+  app_version STRING,
+  logged_buffer_time INT,
+  logged_sample_interval INT,
+  logged_drop_off INT,
+  logged_video_end INT,
+  anonymous_buffer_time INT,
+  anonymous_sample_interval INT,
+  anonymous_drop_off INT,
+  anonymous_video_end INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n' 
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/QOS/output';
+
+-- inserting data into table agg_qos
+INSERT OVERWRITE TABLE agg_qos
+SELECT 
+        nvl(temp1.context1,temp2.context2)           AS context,
+        nvl(temp1.date1,temp2.date2)                 AS date,
+        nvl(temp1.timeband1,temp2.timeband2)         AS timeband,
+        nvl(temp1.platform1,temp2.platform2)         AS platform,
+        nvl(temp1.geography_id1,temp2.geography_id2) AS geography_id,
+        nvl(temp1.app_version1,temp2.app_version2)   AS app_version,
+        temp1.logged_buffer_time,
+        temp1.logged_sample_interval,
+        temp2.logged_drop_off,
+        temp2.logged_video_end,
+        temp1.anonymous_buffer_time,
+        temp1.anonymous_sample_interval,
+        temp2.anonymous_drop_off,
+        temp2.anonymous_video_end
+FROM (
+SELECT t0.context as context1,
+       t0.date as date1,
+       t0.platform as platform1,
+       t0.app_version as app_version1,
+       round(sum(t0.logged_buffer_time))    AS logged_buffer_time,
+       round(sum(t0.anonymous_buffer_time)) AS anonymous_buffer_time,
+       count(t0.logged_sample_interval)     AS logged_sample_interval,
+       count(t0.anonymous_sample_interval)  AS anonymous_sample_interval,
+       t0.timeband AS timeband1,
+       t0.geography_id as geography_id1
+FROM  (
+     SELECT   "Quality Of Service"                                      AS CONTEXT,
+              cast(t2.daily_day AS STRING)                              AS DATE,
+              t4.channel                                                AS PLATFORM,
+              t4.appversion                                             AS APP_VERSION,
+              ( IF(t4.userid != t4.deviceid, t4.buffertime, NULL) )     AS LOGGED_BUFFER_TIME,
+              ( IF(t4.userid = t4.deviceid, t4.buffertime, NULL) )      AS ANONYMOUS_BUFFER_TIME,
+              ( IF(t4.userid != t4.deviceid, t4.videosessionid, NULL) ) AS LOGGED_SAMPLE_INTERVAL,
+              ( IF(t4.userid = t4.deviceid, t4.videosessionid, NULL) )  AS ANONYMOUS_SAMPLE_INTERVAL,
+              GetTimeBand(t4.timestamp)                                 AS TIMEBAND,
+              nvl(t5.geography_id,0)                                    AS GEOGRAPHY_ID
+       FROM   target_video_quality t4
+              LEFT OUTER JOIN dim_calendar t2
+                           ON ( t4.dt_reference = t2.day_identifier )
+              LEFT OUTER JOIN target_profiling t6 
+                            ON ( t4.userid = t6.userid )
+              LEFT OUTER JOIN dim_geography t5 
+                            ON ( t6.regionname = t5.continent) 
+                               AND ( t6.country = t5.state) 
+                               AND ( t6.state = t5.region )                   
+       WHERE  t4.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
+       ) t0
+GROUP  BY t0.context,
+          t0.date,
+          t0.platform,
+          t0.app_version,
+          t0.timeband,
+          t0.geography_id
+) temp1
+FULL OUTER JOIN
+(
+SELECT t0.context                  AS context2,
+       t0.date                     AS date2,
+       t0.platform                 AS platform2,
+       t0.app_version              AS app_version2,
+       sum(t0.logged_drop_off)     AS logged_drop_off,
+       sum(t0.logged_video_end)    AS logged_video_end,
+       sum(t0.anonymous_drop_off)  AS anonymous_drop_off,
+       sum(t0.anonymous_video_end) AS anonymous_video_end,
+       t0.timeband                 AS timeband2,
+       t0.geography_id             AS geography_id2
+FROM  (SELECT "Quality Of Service"                                                                                    AS CONTEXT,
+              date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1)                                              AS DATE,
+              t4.channel                                                                                              AS PLATFORM,
+              t4.appversion                                                                                           AS APP_VERSION,
+              ( IF(t5.userid != t5.deviceid AND t5.eventtype = 'VIDEOEND' AND t5.terminationreason = 'ERROR', 1, 0) ) AS LOGGED_DROP_OFF,
+              ( IF(t5.userid != t5.deviceid AND t5.eventtype = 'VIDEOEND', 1, 0) )                                    AS LOGGED_VIDEO_END,
+              ( IF(t5.userid = t5.deviceid AND t5.eventtype = 'VIDEOEND' AND t5.terminationreason = 'ERROR', 1, 0) )  AS ANONYMOUS_DROP_OFF,
+              ( IF(t5.userid = t5.deviceid AND t5.eventtype = 'VIDEOEND', 1, 0) )                                     AS ANONYMOUS_VIDEO_END,
+              GetTimeBand(t4.timestamp)                                                                               AS TIMEBAND,
+              nvl(t7.geography_id,0)                                                                                  AS GEOGRAPHY_ID
+       FROM   target_user_action t5
+              LEFT OUTER JOIN target_video_quality t4
+                           ON ( t5.userid = t4.userid )
+                         JOIN dim_calendar t2
+                           ON ( t4.dt_reference = t2.day_identifier )
+              LEFT OUTER JOIN target_profiling t6 
+                           ON ( t4.userid = t6.userid )
+              LEFT OUTER JOIN dim_geography t7 
+                           ON ( t6.regionname = t7.continent) 
+                          AND ( t6.country = t7.state) 
+                          AND ( t6.state = t7.region ) 
+       WHERE  t5.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )) t0
+GROUP  BY t0.context,
+          t0.date,
+          t0.platform,
+          t0.app_version,
+          t0.timeband,
+          t0.geography_id
+) temp2
+        ON ( temp1.context1 = temp2.context2)
+        AND (temp1.date1 = temp2.date2)
+        AND (temp1.platform1 = temp2.platform2)
+        AND (temp1.app_version1 = temp2.app_version2) 
+        AND (temp1.timeband1 = temp2.timeband2)
+        AND (temp1.geography_id1 = temp2.geography_id2);
+		
