@@ -1,12 +1,12 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_VAR_Logged_30D.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_VAR_Logged_7D.hql
 -- Created on:    12/11/2015
 -- Authors:       Calabrese, A. - P.Melchiorre
--- Purpose:       Process to calculate the VAR Logged 30D KPIs
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the VAR Logged 7D KPIs
+-------------------------------------------------------------------------------
 
 -- creating a temporary table to store the 1^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp01 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp01 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -24,24 +24,24 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp01 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  accesses_30D INT,
-  number_used_platforms_30D INT,
-  number_used_devices_30D INT
+  accesses_7D INT,
+  number_used_platforms_7D INT,
+  number_used_devices_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp01';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp01';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp01
--- accesses_30D
--- number_used_platforms_30D
--- number_used_devices_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp01
+-- accesses_7D
+-- number_used_platforms_7D
+-- number_used_devices_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp01
+INSERT OVERWRITE TABLE var_logged_7D_tmp01
 select
     vlm.date,
     vlm.user_id,
@@ -60,38 +60,38 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.accesses_30D,
-    tmp.number_used_platforms_30D,
-    tmp.number_used_devices_30D
+    tmp.accesses_7D,
+    tmp.number_used_platforms_7D,
+    tmp.number_used_devices_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(accesses_30D) AS accesses_30D,
-    count(distinct(number_used_platforms_30D)) AS number_used_platforms_30D,
-    count(distinct(number_used_devices_30D)) AS number_used_devices_30D
+    count(accesses_7D) AS accesses_7D,
+    count(distinct(number_used_platforms_7D)) AS number_used_platforms_7D,
+    count(distinct(number_used_devices_7D)) AS number_used_devices_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    final.user_id2 AS accesses_30D,
-    final.channel AS number_used_platforms_30D,
-    final.deviceid AS number_used_devices_30D
+    final.user_id2 AS accesses_7D,
+    final.channel AS number_used_platforms_7D,
+    final.deviceid AS number_used_devices_7D
 
 from (
 select t1.user_id AS user_id1, t2.userid AS user_id2, t2.channel, t2.deviceid
 from
     var_logged_master t1
     left outer join
-    (select * from target_login t3 where  t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_login t3 where  t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.userid) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 2^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp02 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp02 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -109,20 +109,20 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp02 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  playlists_30D INT
+  playlists_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp02';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp02';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp02
--- playlists_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp02
+-- playlists_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp02
+INSERT OVERWRITE TABLE var_logged_7D_tmp02
 select
     vlm.date,
     vlm.user_id,
@@ -141,32 +141,32 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.playlists_30D
+    tmp.playlists_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(playlists_30D) AS playlists_30D
+    count(playlists_7D) AS playlists_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    (if(final.eventtype = "FAVOURITECREATION", final.user_id2, null)) AS playlists_30D
+    (if(final.eventtype = "FAVOURITECREATION", final.user_id2, null)) AS playlists_7D
 
 from (
 select t1.user_id AS user_id1, t2.user_id AS user_id2, t2.eventtype
 from
     var_logged_master t1
     left outer join
-    (select * from target_favourite t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_favourite t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.user_id) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 3^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp03 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp03 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -184,26 +184,26 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp03 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  impressions_30D INT,
-  viewed_adv_30D INT,
-  clicks_through_30D INT,
-  skipped_adv_30D INT
+  impressions_7D INT,
+  viewed_adv_7D INT,
+  clicks_through_7D INT,
+  skipped_adv_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp03';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp03';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp03
--- impressions_30D
--- viewed_adv_30D
--- clicks_through_30D
--- skipped_adv_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp03
+-- impressions_7D
+-- viewed_adv_7D
+-- clicks_through_7D
+-- skipped_adv_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp03
+INSERT OVERWRITE TABLE var_logged_7D_tmp03
 select
     vlm.date,
     vlm.user_id,
@@ -222,41 +222,41 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.impressions_30D,
-    tmp.viewed_adv_30D,
-    tmp.clicks_through_30D,
-    tmp.skipped_adv_30D
+    tmp.impressions_7D,
+    tmp.viewed_adv_7D,
+    tmp.clicks_through_7D,
+    tmp.skipped_adv_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(impressions_30D) AS impressions_30D,
-    count(viewed_adv_30D) AS viewed_adv_30D,
-    count(clicks_through_30D) AS clicks_through_30D,
-    count(skipped_adv_30D) AS skipped_adv_30D
+    count(impressions_7D) AS impressions_7D,
+    count(viewed_adv_7D) AS viewed_adv_7D,
+    count(clicks_through_7D) AS clicks_through_7D,
+    count(skipped_adv_7D) AS skipped_adv_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    final.user_id2 AS impressions_30D,
-    (if(final.completion_percentage == 100, final.user_id2, null)) AS viewed_adv_30D,
-    (if(final.has_been_clicked == "Y", final.user_id2, null)) AS clicks_through_30D,
-    (if(final.has_been_skipped == "Y", final.user_id2, null)) AS skipped_adv_30D
+    final.user_id2 AS impressions_7D,
+    (if(final.completion_percentage == 100, final.user_id2, null)) AS viewed_adv_7D,
+    (if(final.has_been_clicked == "Y", final.user_id2, null)) AS clicks_through_7D,
+    (if(final.has_been_skipped == "Y", final.user_id2, null)) AS skipped_adv_7D
 
 from (
 select t1.user_id AS user_id1, t1.birth_date, t1.gender, t2.user_id AS user_id2, t2.completion_percentage, t2.has_been_clicked, t2.has_been_skipped
 from
     var_logged_master t1
     left outer join
-    (select * from target_impression t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_impression t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.user_id) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 4^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp04 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp04 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -274,24 +274,24 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp04 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  likes_30D INT,
-  dislikes_30D INT,
-  ratings_30D INT
+  likes_7D INT,
+  dislikes_7D INT,
+  ratings_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp04';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp04';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp04
--- likes_30D
--- dislikes_30D
--- ratings_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp04
+-- likes_7D
+-- dislikes_7D
+-- ratings_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp04
+INSERT OVERWRITE TABLE var_logged_7D_tmp04
 select
     vlm.date,
     vlm.user_id,
@@ -310,38 +310,38 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.likes_30D,
-    tmp.dislikes_30D,
-    tmp.ratings_30D
+    tmp.likes_7D,
+    tmp.dislikes_7D,
+    tmp.ratings_7D
 from
     var_logged_master vlm, (select
     user_id,
-    sum(likes_30D) AS likes_30D,
-    sum(dislikes_30D) AS dislikes_30D,
-    sum(ratings_30D) AS ratings_30D
+    sum(likes_7D) AS likes_7D,
+    sum(dislikes_7D) AS dislikes_7D,
+    sum(ratings_7D) AS ratings_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    (if(final.is_liked = "Y", 1, 0)) AS likes_30D,
-    (if(final.is_disliked = "Y", 1, 0)) AS dislikes_30D,
-    (if(final.rating !="", 1, 0)) AS ratings_30D
+    (if(final.is_liked = "Y", 1, 0)) AS likes_7D,
+    (if(final.is_disliked = "Y", 1, 0)) AS dislikes_7D,
+    (if(final.rating !="", 1, 0)) AS ratings_7D
 
 from (
 select t1.user_id AS user_id1, t1.birth_date, t1.gender, t2.user_id AS user_id2, t2.is_liked, t2.is_disliked, t2.rating
 from
     var_logged_master t1
     left outer join
-    (select * from target_curation t3  where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_curation t3  where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.user_id) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 5^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp05 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp05 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -359,22 +359,22 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp05 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  npvr_requests_30D INT,
-  npvr_views_30D INT
+  npvr_requests_7D INT,
+  npvr_views_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp05';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp05';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp05
--- npvr_requests_30D
--- npvr_views_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp05
+-- npvr_requests_7D
+-- npvr_views_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp05
+INSERT OVERWRITE TABLE var_logged_7D_tmp05
 select
     vlm.date,
     vlm.user_id,
@@ -393,35 +393,35 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.npvr_requests_30D,
-    tmp.npvr_views_30D
+    tmp.npvr_requests_7D,
+    tmp.npvr_views_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(npvr_requests_30D) AS npvr_requests_30D,
-    count(npvr_views_30D) AS npvr_views_30D
+    count(npvr_requests_7D) AS npvr_requests_7D,
+    count(npvr_views_7D) AS npvr_views_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    (if(final.recording_action = "CREATE", final.user_id2, null)) AS npvr_requests_30D,
-    (if(final.recording_action = "PLAY", final.user_id2, null)) AS npvr_views_30D
+    (if(final.recording_action = "CREATE", final.user_id2, null)) AS npvr_requests_7D,
+    (if(final.recording_action = "PLAY", final.user_id2, null)) AS npvr_views_7D
 
 from (
 select t1.user_id AS user_id1, t2.user_id AS user_id2, t2.recording_action
 from
     var_logged_master t1
     left outer join
-    (select * from target_npvr t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_npvr t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.user_id) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 6^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp06 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp06 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -439,22 +439,22 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp06 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  purchases_30D INT,
-  revenues_30D DOUBLE
+  purchases_7D INT,
+  revenues_7D DOUBLE
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp06';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp06';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp06
--- purchases_30D
--- revenues_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp06
+-- purchases_7D
+-- revenues_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp06
+INSERT OVERWRITE TABLE var_logged_7D_tmp06
 select
     vlm.date,
     vlm.user_id,
@@ -474,35 +474,35 @@ select
     vlm.first_access_date,
     vlm.first_view_date,
     vlm.first_view_date,
-    tmp.purchases_30D,
-    tmp.revenues_30D
+    tmp.purchases_7D,
+    tmp.revenues_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(purchases_30D) AS purchases_30D,
-    sum(revenues_30D) AS revenues_30D
+    count(purchases_7D) AS purchases_7D,
+    sum(revenues_7D) AS revenues_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    final.user_id2 AS purchases_30D,
-    final.originalprice AS revenues_30D
+    final.user_id2 AS purchases_7D,
+    final.originalprice AS revenues_7D
 
 from (
 select t1.user_id AS user_id1, t2.userid AS user_id2, t2.originalprice
 from
     var_logged_master t1
     left outer join
-    (select * from target_purchase t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_purchase t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.userid) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 7^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp07 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp07 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -520,20 +520,20 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp07 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  reminders_30D INT
+  reminders_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp07';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp07';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp07
--- reminders_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp07
+-- reminders_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp07
+INSERT OVERWRITE TABLE var_logged_7D_tmp07
 select
     vlm.date,
     vlm.user_id,
@@ -552,32 +552,32 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.reminders_30D
+    tmp.reminders_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(reminders_30D) AS reminders_30D
+    count(reminders_7D) AS reminders_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    final.user_id2 AS reminders_30D
+    final.user_id2 AS reminders_7D
 
 from (
 select t1.user_id AS user_id1, t2.userid AS user_id2
 from
     var_logged_master t1
     left outer join
-    (select * from target_reminder t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_reminder t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.userid) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 8^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp08 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp08 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -595,20 +595,20 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp08 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  searches_30D INT
+  searches_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp08';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp08';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp08
--- searches_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp08
+-- searches_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp08
+INSERT OVERWRITE TABLE var_logged_7D_tmp08
 select
     vlm.date,
     vlm.user_id,
@@ -627,32 +627,32 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.searches_30D
+    tmp.searches_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(searches_30D) AS searches_30D
+    count(searches_7D) AS searches_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    final.user_id2 AS searches_30D
+    final.user_id2 AS searches_7D
 
 from (
 select t1.user_id AS user_id1, t2.user_id AS user_id2
 from
     var_logged_master t1
     left outer join
-    (select * from target_search t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_search t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.user_id) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 9^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp09 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp09 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -670,24 +670,24 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp09 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  video_drop_off_30D INT,
-  average_video_drop_off_30D DOUBLE,
-  launched_apps_30D INT
+  video_drop_off_7D INT,
+  average_video_drop_off_7D DOUBLE,
+  launched_apps_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp09';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp09';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp09
--- video_drop_off_30D
--- average_video_drop_off_30D
--- launched_apps_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp09
+-- video_drop_off_7D
+-- average_video_drop_off_7D
+-- launched_apps_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp09
+INSERT OVERWRITE TABLE var_logged_7D_tmp09
 select
     vlm.date,
     vlm.user_id,
@@ -706,39 +706,39 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.video_drop_off_30D,
-    tmp.average_video_drop_off_30D,
-    tmp.launched_apps_30D
+    tmp.video_drop_off_7D,
+    tmp.average_video_drop_off_7D,
+    tmp.launched_apps_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(video_drop_off_30D) AS video_drop_off_30D,
-    (count(average_video_drop_off_30D_num1)/count(average_video_drop_off_30D_num2)) AS average_video_drop_off_30D,
-    count(launched_apps_30D) AS launched_apps_30D
+    count(video_drop_off_7D) AS video_drop_off_7D,
+    (count(average_video_drop_off_7D_num1)/count(average_video_drop_off_7D_num2)) AS average_video_drop_off_7D,
+    count(launched_apps_7D) AS launched_apps_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    (if(final.eventtype == "VIDEOEND" and final.terminationreason == "ERROR", final.sessionid, null)) AS video_drop_off_30D,
-    (if(final.eventtype == "VIDEOEND" and final.terminationreason == "ERROR", final.sessionid, null)) AS average_video_drop_off_30D_num1,
-    final.user_id2 AS average_video_drop_off_30D_num2,
-    (if(final.eventtype == "APPLICATIONSTARTUP", final.sessionid, null)) AS launched_apps_30D
+    (if(final.eventtype == "VIDEOEND" and final.terminationreason == "ERROR", final.sessionid, null)) AS video_drop_off_7D,
+    (if(final.eventtype == "VIDEOEND" and final.terminationreason == "ERROR", final.sessionid, null)) AS average_video_drop_off_7D_num1,
+    final.user_id2 AS average_video_drop_off_7D_num2,
+    (if(final.eventtype == "APPLICATIONSTARTUP", final.sessionid, null)) AS launched_apps_7D
 
 from (
 select t1.user_id AS user_id1, t2.userid AS user_id2, t2.sessionid, t2.eventtype, t2.terminationreason
 from
     var_logged_master t1
     left outer join
-    (select * from target_user_action t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_user_action t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.userid) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 10^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp10 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp10 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -756,22 +756,22 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp10 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  video_views_30D INT,
-  video_playback_duration_30D INT
+  video_views_7D INT,
+  video_playback_duration_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp10';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp10';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp10
--- video_views_30D
--- video_playback_duration_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp10
+-- video_views_7D
+-- video_playback_duration_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp10
+INSERT OVERWRITE TABLE var_logged_7D_tmp10
 select
     vlm.date,
     vlm.user_id,
@@ -790,21 +790,21 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.video_views_30D,
-    tmp.video_playback_duration_30D
+    tmp.video_views_7D,
+    tmp.video_playback_duration_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(video_views_30D) AS video_views_30D,
-    round(sum(video_playback_duration_30D)/60) AS video_playback_duration_30D
+    count(video_views_7D) AS video_views_7D,
+    round(sum(video_playback_duration_7D)/60) AS video_playback_duration_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    (if(final.download != "Y", final.user_id2, null)) AS video_views_30D,
-    (if(final.download != "Y", final.consumption, null)) AS video_playback_duration_30D
+    (if(final.download != "Y", final.user_id2, null)) AS video_views_7D,
+    (if(final.download != "Y", final.consumption, null)) AS video_playback_duration_7D
 
 from (
 select t1.user_id AS user_id1, t2.userid AS user_id2, t2.download, t2.consumption
@@ -812,7 +812,7 @@ from
     var_logged_master t1
     left outer join
     (select userid, consumption, download from target_watching t3, target_category_map t4
-where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
 and t3.contentid = t4.contentid) t2
     on t1.user_id = t2.userid
@@ -821,7 +821,7 @@ group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 11^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp11 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp11 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -839,20 +839,20 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp11 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  top_watched_category_30D STRING
+  top_watched_category_7D STRING
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp11';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp11';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp11
--- TOP_WATCHED_CATEGORY_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp11
+-- top_watched_category_7d
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp11
+INSERT OVERWRITE TABLE var_logged_7D_tmp11
 select
     vlm.date,
     vlm.user_id,
@@ -871,7 +871,7 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.categoryname AS top_watched_category_30D
+    tmp.categoryname AS top_watched_category_7D
 from
     var_logged_master vlm
     left outer join
@@ -880,7 +880,7 @@ select userid,categoryname,num,rank() over (partition by userid order by num des
 from (
 select t1.userid, t3.categoryname, count(t1.userid) AS num
           from target_profiling t1, target_watching t2, target_category_map t3
-       where t2.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+       where t2.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t2.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
            and t1.userid = t2.userid and t2.contentid = t3.contentid
 group by t1.userid, t3.categoryname) a) S
@@ -888,7 +888,7 @@ group by t1.userid, t3.categoryname) a) S
     on vlm.user_id = tmp.userid;
 
 -- creating a temporary table to store the 12^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp12 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp12 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -906,22 +906,22 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp12 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  live_views_30D INT,
-  live_playback_duration_30D INT
+  live_views_7D INT,
+  live_playback_duration_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp12';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp12';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp12
--- live_views_30D
--- live_playback_duration_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp12
+-- live_views_7D
+-- live_playback_duration_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp12
+INSERT OVERWRITE TABLE var_logged_7D_tmp12
 select
     vlm.date,
     vlm.user_id,
@@ -940,21 +940,21 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.live_views_30D,
-    tmp.live_playback_duration_30D
+    tmp.live_views_7D,
+    tmp.live_playback_duration_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(live_views_30D) AS live_views_30D,
-    round(sum(live_playback_duration_30D)/60) AS live_playback_duration_30D
+    count(live_views_7D) AS live_views_7D,
+    round(sum(live_playback_duration_7D)/60) AS live_playback_duration_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    (if(final.download != "Y", final.user_id2, null)) AS live_views_30D,
-    (if(final.download != "Y", final.consumption, null)) AS live_playback_duration_30D
+    (if(final.download != "Y", final.user_id2, null)) AS live_views_7D,
+    (if(final.download != "Y", final.consumption, null)) AS live_playback_duration_7D
 
 from (
 select t1.user_id AS user_id1, t2.userid AS user_id2, t2.download, t2.consumption
@@ -962,7 +962,7 @@ from
     var_logged_master t1
     left outer join
     (select userid, consumption, download from target_watching t3, target_epg_catalog t4
-where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
 and t3.contentid = t4.livecontentid) t2
     on t1.user_id = t2.userid
@@ -971,7 +971,7 @@ group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
 -- creating a temporary table to store the 13^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp13 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp13 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -989,20 +989,20 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp13 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  top_watched_channel_30D STRING
+  top_watched_channel_7D STRING
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp13';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp13';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp13
--- top_watched_channel_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp13
+-- TOP_WATCHED_CHANNEL_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp13
+INSERT OVERWRITE TABLE var_logged_7D_tmp13
 select
     vlm.date,
     vlm.user_id,
@@ -1021,7 +1021,7 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.channel_name AS top_watched_channel_30D
+    tmp.channel_name AS top_watched_channel_7D
 from
     var_logged_master vlm
     left outer join
@@ -1030,7 +1030,7 @@ select userid,channel_name,num,rank() over (partition by userid order by num des
 from (
 select t1.userid, t3.channel_name, count(t1.userid) AS num
           from target_profiling t1, target_watching t2, target_epg_catalog t3
-       where t2.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+       where t2.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t2.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
            and t1.userid = t2.userid and t2.contentid = t3.livecontentid
 group by t1.userid, t3.channel_name) a) S
@@ -1038,7 +1038,7 @@ group by t1.userid, t3.channel_name) a) S
     on vlm.user_id = tmp.userid;
 
 -- creating a temporary table to store the 14^ subset of VAR Logged's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp14 (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp14 (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -1056,24 +1056,24 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D_tmp14 (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  views_30D INT,
-  playback_duration_30D INT,
-  downloads_30D INT
+  views_7D INT,
+  playback_duration_7D INT,
+  downloads_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D_tmp14';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp14';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D_tmp14
--- views_30D
--- playback_duration_30D
--- downloads_30D
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D_tmp14
+-- views_7D
+-- playback_duration_7D
+-- downloads_7D
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE var_logged_30D_tmp14
+INSERT OVERWRITE TABLE var_logged_7D_tmp14
 select
     vlm.date,
     vlm.user_id,
@@ -1092,42 +1092,42 @@ select
     vlm.most_used_platform,
     vlm.first_access_date,
     vlm.first_view_date,
-    tmp.views_30D,
-    tmp.playback_duration_30D,
-    tmp.downloads_30D
+    tmp.views_7D,
+    tmp.playback_duration_7D,
+    tmp.downloads_7D
 from
     var_logged_master vlm, (select
     user_id,
-    count(views_30D) AS views_30D,
-    round(sum(playback_duration_30D)/60) AS playback_duration_30D,
-    count(downloads_30D) AS downloads_30D
+    count(views_7D) AS views_7D,
+    round(sum(playback_duration_7D)/60) AS playback_duration_7D,
+    count(downloads_7D) AS downloads_7D
 
 from (
 
 select
 
     final.user_id1 AS user_id,
-    (if(final.download != "Y", final.user_id2, null)) AS views_30D,
-    (if(final.download != "Y", final.consumption, null)) AS playback_duration_30D,
-    (if(final.download = "Y", final.user_id2, null)) AS downloads_30D
+    (if(final.download != "Y", final.user_id2, null)) AS views_7D,
+    (if(final.download != "Y", final.consumption, null)) AS playback_duration_7D,
+    (if(final.download = "Y", final.user_id2, null)) AS downloads_7D
 
 from (
 select t1.user_id AS user_id1, t2.userid AS user_id2, t2.download, t2.consumption
 from
     var_logged_master t1
     left outer join
-    (select * from target_watching t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+    (select * from target_watching t3 where t3.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
       AND t3.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')) t2
     on t1.user_id = t2.userid) final) a
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
--- -----------------------------------------------------------------------------
--- Temporary table name: var_logged_30D
+-------------------------------------------------------------------------------
+-- Temporary table name: var_logged_7D
 -- join all temporary tables
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D (
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D (
   date STRING,
   user_id STRING,
   birth_date DATE,
@@ -1145,81 +1145,81 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_30D (
   most_used_platform STRING,
   first_access_date STRING,
   first_view_date STRING,
-  accesses_30D INT,
-  number_used_platforms_30D INT,
-  number_used_devices_30D INT,
-  video_views_30D INT,
-  video_playback_duration_30D INT,
-  live_views_30D INT,
-  live_playback_duration_30D INT,
-  views_30D INT,
-  playback_duration_30D INT,
-  top_watched_category_30D STRING,
-  top_watched_channel_30D STRING,
-  downloads_30D INT,
-  playlists_30D INT,
-  impressions_30D INT,
-  viewed_adv_30D INT,
-  clicks_through_30D INT,
-  skipped_adv_30D INT,
-  likes_30D INT,
-  dislikes_30D INT,
-  ratings_30D INT,
-  searches_30D INT,
-  reminders_30D INT,
-  video_drop_off_30D INT,
-  average_video_drop_off_30D DOUBLE,
-  launched_apps_30D INT,
-  purchases_30D INT,
-  revenues_30D DOUBLE,
-  npvr_requests_30D INT,
-  npvr_views_30D INT
+  accesses_7D INT,
+  number_used_platforms_7D INT,
+  number_used_devices_7D INT,
+  video_views_7D INT,
+  video_playback_duration_7D INT,
+  live_views_7D INT,
+  live_playback_duration_7D INT,
+  views_7D INT,
+  playback_duration_7D INT,
+  top_watched_category_7D STRING,
+  top_watched_channel_7D STRING,
+  downloads_7D INT,
+  playlists_7D INT,
+  impressions_7D INT,
+  viewed_adv_7D INT,
+  clicks_through_7D INT,
+  skipped_adv_7D INT,
+  likes_7D INT,
+  dislikes_7D INT,
+  ratings_7D INT,
+  searches_7D INT,
+  reminders_7D INT,
+  video_drop_off_7D INT,
+  average_video_drop_off_7D DOUBLE,
+  launched_apps_7D INT,
+  purchases_7D INT,
+  revenues_7D DOUBLE,
+  npvr_requests_7D INT,
+  npvr_views_7D INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_30D';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D';
 
-INSERT OVERWRITE TABLE var_logged_30D
+INSERT OVERWRITE TABLE var_logged_7D
 SELECT t1.*,
-       t10.video_views_30D,
-       t10.video_playback_duration_30D,
-       t12.live_views_30D,
-       t12.live_playback_duration_30D,
-       t14.views_30D,
-       t14.playback_duration_30D,
-       t11.top_watched_category_30D,
-       t13.top_watched_channel_30D,
-       t14.downloads_30D,
-       t2.playlists_30D,
-       t3.impressions_30D,
-       t3.viewed_adv_30D,
-       t3.clicks_through_30D,
-       t3.skipped_adv_30D,
-       t4.likes_30D,
-       t4.dislikes_30D,
-       t4.ratings_30D,
-       t8.searches_30D,
-       t7.reminders_30D,
-       t9.video_drop_off_30D,
-       t9.average_video_drop_off_30D,
-       t9.launched_apps_30D,
-       t6.purchases_30D,
-       t6.revenues_30D,
-       t5.npvr_requests_30D,
-       t5.npvr_views_30D
-FROM var_logged_30D_tmp01 t1
-JOIN var_logged_30D_tmp02 t2 ON t1.user_id = t2.user_id
-JOIN var_logged_30D_tmp03 t3 ON t1.user_id = t3.user_id
-JOIN var_logged_30D_tmp04 t4 ON t1.user_id = t4.user_id
-JOIN var_logged_30D_tmp05 t5 ON t1.user_id = t5.user_id
-JOIN var_logged_30D_tmp06 t6 ON t1.user_id = t6.user_id
-JOIN var_logged_30D_tmp07 t7 ON t1.user_id = t7.user_id
-JOIN var_logged_30D_tmp08 t8 ON t1.user_id = t8.user_id
-JOIN var_logged_30D_tmp09 t9 ON t1.user_id = t9.user_id
-JOIN var_logged_30D_tmp10 t10 ON t1.user_id = t10.user_id
-JOIN var_logged_30D_tmp11 t11 ON t1.user_id = t11.user_id
-JOIN var_logged_30D_tmp12 t12 ON t1.user_id = t12.user_id
-JOIN var_logged_30D_tmp13 t13 ON t1.user_id = t13.user_id
-JOIN var_logged_30D_tmp14 t14 ON t1.user_id = t14.user_id;
+       t10.video_views_7D,
+       t10.video_playback_duration_7D,
+       t12.live_views_7D,
+       t12.live_playback_duration_7D,
+       t14.views_7D,
+       t14.playback_duration_7D,
+       t11.top_watched_category_7D,
+       t13.top_watched_channel_7D,
+       t14.downloads_7D,
+       t2.playlists_7D,
+       t3.impressions_7D,
+       t3.viewed_adv_7D,
+       t3.clicks_through_7D,
+       t3.skipped_adv_7D,
+       t4.likes_7D,
+       t4.dislikes_7D,
+       t4.ratings_7D,
+       t8.searches_7D,
+       t7.reminders_7D,
+       t9.video_drop_off_7D,
+       t9.average_video_drop_off_7D,
+       t9.launched_apps_7D,
+       t6.purchases_7D,
+       t6.revenues_7D,
+       t5.npvr_requests_7D,
+       t5.npvr_views_7D
+FROM var_logged_7D_tmp01 t1
+JOIN var_logged_7D_tmp02 t2 ON t1.user_id = t2.user_id
+JOIN var_logged_7D_tmp03 t3 ON t1.user_id = t3.user_id
+JOIN var_logged_7D_tmp04 t4 ON t1.user_id = t4.user_id
+JOIN var_logged_7D_tmp05 t5 ON t1.user_id = t5.user_id
+JOIN var_logged_7D_tmp06 t6 ON t1.user_id = t6.user_id
+JOIN var_logged_7D_tmp07 t7 ON t1.user_id = t7.user_id
+JOIN var_logged_7D_tmp08 t8 ON t1.user_id = t8.user_id
+JOIN var_logged_7D_tmp09 t9 ON t1.user_id = t9.user_id
+JOIN var_logged_7D_tmp10 t10 ON t1.user_id = t10.user_id
+JOIN var_logged_7D_tmp11 t11 ON t1.user_id = t11.user_id
+JOIN var_logged_7D_tmp12 t12 ON t1.user_id = t12.user_id
+JOIN var_logged_7D_tmp13 t13 ON t1.user_id = t13.user_id
+JOIN var_logged_7D_tmp14 t14 ON t1.user_id = t14.user_id;
