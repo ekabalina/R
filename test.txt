@@ -1,212 +1,85 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_VAR_VOD.hql
--- Created on:    12/11/2015
--- Authors:       Stefanelli, Adriano
--- Purpose:       Process to calculate the VAR Vod KPIs
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_VAR_Logged_Master.hql
+-- Created on:    06/11/2015
+-- Author:        Melchiorre, Pierpaolo
+-- Purpose:       Process to load the dimensions in order to simplify calculation of KPI
+-------------------------------------------------------------------------------
 
--- creating table to store the VAR Vod's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_content (
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min DOUBLE,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  logged_viewers_1d INT,
-  anonymous_viewers_1d INT,
-  logged_views_1d INT,
-  anonymous_views_1d INT,
-  playback_duration_min_per_logged_viewer_1d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_1d DOUBLE,
-  playback_duration_min_per_logged_view_1d DOUBLE,
-  playback_duration_min_per_anonymous_view_1d DOUBLE,
-  views_subsequent_details_1d INT,
-  purchases_1d INT,
-  revenues_1d double,
-  downloads_1d INT,
-  playlists_1d INT,
-  impressions_1d INT,
-  likes_1d INT,
-  dislikes_1d INT,
-  ratings_1d INT,
-  avg_rating_value_1d INT,
-  logged_viewers_7d INT,
-  anonymous_viewers_7d INT,
-  logged_views_7d INT,
-  anonymous_views_7d INT,
-  playback_duration_min_per_logged_viewer_7d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_7d DOUBLE,
-  playback_duration_min_per_logged_view_7d DOUBLE,
-  playback_duration_min_per_anonymous_view_7d DOUBLE,
-  views_subsequent_details_7d INT,
-  purchases_7d INT,
-  revenues_7d double,
-  downloads_7d INT,
-  playlists_7d INT,
-  impressions_7d INT,
-  likes_7d INT,
-  dislikes_7d INT,
-  ratings_7d INT,
-  avg_rating_value_7d INT,
-  logged_viewers_30d INT,
-  anonymous_viewers_30d INT,
-  logged_views_30d INT,
-  anonymous_views_30d INT,
-  playback_duration_min_per_logged_viewer_30d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_30d DOUBLE,
-  playback_duration_min_per_logged_view_30d DOUBLE,
-  playback_duration_min_per_anonymous_view_30d DOUBLE,
-  views_subsequent_details_30d INT,
-  purchases_30d INT,
-  revenues_30d double,
-  downloads_30d INT,
-  playlists_30d INT,
-  impressions_30d INT,
-  likes_30d INT,
-  dislikes_30d INT,
-  ratings_30d INT,
-  avg_rating_value_30d INT,
-  logged_viewers_60d INT,
-  anonymous_viewers_60d INT,
-  logged_views_60d INT,
-  anonymous_views_60d INT,
-  playback_duration_min_per_logged_viewer_60d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_60d DOUBLE,
-  playback_duration_min_per_logged_view_60d DOUBLE,
-  playback_duration_min_per_anonymous_view_60d DOUBLE,
-  views_subsequent_details_60d INT,
-  purchases_60d INT,
-  revenues_60d double,
-  downloads_60d INT,
-  playlists_60d INT,
-  impressions_60d INT,
-  likes_60d INT,
-  dislikes_60d INT,
-  ratings_60d INT,
-  avg_rating_value_60d INT,
-  logged_viewers_90d INT,
-  anonymous_viewers_90d INT,
-  logged_views_90d INT,
-  anonymous_views_90d INT,
-  playback_duration_min_per_logged_viewer_90d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_90d DOUBLE,
-  playback_duration_min_per_logged_view_90d DOUBLE,
-  playback_duration_min_per_anonymous_view_90d DOUBLE,
-  views_subsequent_details_90d INT,
-  purchases_90d INT,
-  revenues_90d double,
-  downloads_90d INT,
-  playlists_90d INT,
-  impressions_90d INT,
-  likes_90d INT,
-  dislikes_90d INT,
-  ratings_90d INT,
-  avg_rating_value_90d INT
+delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+
+drop temporary function GetAgeBracket;
+create temporary function GetAgeBracket as 'com.accenture.AVSA.hive.UDF.GetAgeBracket';
+
+-- creation of staging table for curation entity
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_master (
+  date STRING,
+  user_id STRING,
+  birth_date STRING,
+  gender STRING,
+  age_bracket STRING,
+  country STRING,
+  state STRING,
+  province STRING,
+  city STRING,
+  zip_code STRING,
+  registration_method STRING,
+  referral_source STRING,
+  registration_trigger STRING,
+  registration_date STRING,
+  most_used_platform STRING,
+  first_access_date STRING,
+  first_view_date STRING
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/output';
+LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_master';
 
--- inserting data into var_vod_content table
-INSERT OVERWRITE TABLE var_vod_content
-SELECT
-  t1.*, 
-  t2.logged_viewers_7d,
-  t2.anonymous_viewers_7d,
-  t2.logged_views_7d,
-  t2.anonymous_views_7d,
-  t2.playback_duration_min_per_logged_viewer_7d,
-  t2.playback_duration_min_per_anonymous_viewer_7d,
-  t2.playback_duration_min_per_logged_view_7d,
-  t2.playback_duration_min_per_anonymous_view_7d,
-  t2.views_subsequent_details_7d,
-  t2.purchases_7d,
-  t2.revenues_7d,
-  t2.downloads_7d,
-  t2.playlists_7d,
-  t2.impressions_7d,
-  t2.likes_7d,
-  t2.dislikes_7d,
-  t2.ratings_7d,
-  t2.avg_rating_value_7d,
-  t3.logged_viewers_30d,
-  t3.anonymous_viewers_30d,
-  t3.logged_views_30d,
-  t3.anonymous_views_30d,
-  t3.playback_duration_min_per_logged_viewer_30d,
-  t3.playback_duration_min_per_anonymous_viewer_30d,
-  t3.playback_duration_min_per_logged_view_30d,
-  t3.playback_duration_min_per_anonymous_view_30d,
-  t3.views_subsequent_details_30d,
-  t3.purchases_30d,
-  t3.revenues_30d,
-  t3.downloads_30d,
-  t3.playlists_30d,
-  t3.impressions_30d,
-  t3.likes_30d,
-  t3.dislikes_30d,
-  t3.ratings_30d,
-  t3.avg_rating_value_30d,
-  t4.logged_viewers_60d,
-  t4.anonymous_viewers_60d,
-  t4.logged_views_60d,
-  t4.anonymous_views_60d,
-  t4.playback_duration_min_per_logged_viewer_60d,
-  t4.playback_duration_min_per_anonymous_viewer_60d,
-  t4.playback_duration_min_per_logged_view_60d,
-  t4.playback_duration_min_per_anonymous_view_60d,
-  t4.views_subsequent_details_60d,
-  t4.purchases_60d,
-  t4.revenues_60d,
-  t4.downloads_60d,
-  t4.playlists_60d,
-  t4.impressions_60d,
-  t4.likes_60d,
-  t4.dislikes_60d,
-  t4.ratings_60d,
-  t4.avg_rating_value_60d,
-  t5.logged_viewers_90d,
-  t5.anonymous_viewers_90d,
-  t5.logged_views_90d,
-  t5.anonymous_views_90d,
-  t5.playback_duration_min_per_logged_viewer_90d,
-  t5.playback_duration_min_per_anonymous_viewer_90d,
-  t5.playback_duration_min_per_logged_view_90d,
-  t5.playback_duration_min_per_anonymous_view_90d,
-  t5.views_subsequent_details_90d,
-  t5.purchases_90d,
-  t5.revenues_90d,
-  t5.downloads_90d,
-  t5.playlists_90d,
-  t5.impressions_90d,
-  t5.likes_90d,
-  t5.dislikes_90d,
-  t5.ratings_90d,
-  t5.avg_rating_value_90d
-FROM var_vod_1D t1
-JOIN var_vod_7D t2 ON t1.content_id = t2.content_id
-JOIN var_vod_30D t3 ON t1.content_id = t3.content_id
-JOIN var_vod_60D t4 ON t1.content_id = t4.content_id
-JOIN var_vod_90D t5 ON t1.content_id = t5.content_id;
+-- Process to load the dimensions in order to simplify calculation of KPI
+INSERT OVERWRITE TABLE var_logged_master
+SELECT (date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )     AS DATE,
+       t1.userid                                                         AS USER_ID,
+       t1.birth_date                                                     AS BIRTH_DATE,
+       t1.gender                                                         AS GENDER,
+       GetAgeBracket(t1.birth_date)                                      AS AGE_BRACKET,
+       t1.country                                                        AS COUNTRY,
+       t1.state                                                          AS STATE,
+       t1.province                                                       AS PROVINCE,
+       t1.city                                                           AS CITY,
+       t1.zip_code                                                       AS ZIP_CODE,
+       t2.registrationmethod                                             AS REGISTRATION_METHOD,
+       t2.referralsource                                                 AS REFERRAL_SOURCE,
+       t2.registrationtrigger                                            AS REGISTRATION_TRIGGER,
+       t2.join_date                                                      AS REGISTRATION_DATE,
+       b.channel                                                         AS MOST_USED_PLATFORM,
+       t3.login_date                                                     AS FIRST_ACCESS_DATE,
+       t4.watching_date                                                  AS FIRST_VIEW_DATE
+FROM   target_profiling t1
+       LEFT OUTER JOIN target_customer_base_join t2 
+                    ON ( t1.userid = t2.userid )                  
+       LEFT OUTER JOIN target_customer_base_login t3
+                    ON ( t1.userid = t3.userid ) 
+       LEFT OUTER JOIN target_customer_base_watching t4
+                    ON ( t1.userid = t4.userid )
+       LEFT OUTER JOIN (       
+                        SELECT S.userid, S.channel 
+                         FROM (
+                            SELECT userid as userid,
+                                   channel as channel,
+                                   num,
+                                   rank() over (partition by userid order by num desc,channel) as r
+                            FROM (
+                                SELECT   t1.userid as userid ,t4.channel as channel, count(t4.channel) as num 
+                                FROM target_profiling t1, target_user_action t4
+                                WHERE  t1.userid = t4.userid
+                                  AND t4.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 90) 
+								  AND t4.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+                                GROUP BY t1.userid ,t4.channel
+                                )a                             
+                             ) S
+                            WHERE S.r=1
+                        ) b             
+                    ON ( t1.userid = b.userid );
+  
