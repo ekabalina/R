@@ -1,106 +1,92 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_User_Experience_Curation.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_User_Experience_Search.hql
 -- Created on:    05/11/2015
--- Authors:       Kansal, Arshi - Fumagalli, Luca
--- Purpose:       Process to calculate the User Experience Aggregate (Curation)
--- -----------------------------------------------------------------------------
+-- Authors:       Kansal, Arshi
+-- Purpose:       Process to calculate the User Experience Aggregate (Search)
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
 drop temporary function GetTimeBand;
 create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
 
 -- inserting data into table agg_user_experience
 INSERT INTO TABLE agg_user_experience
-SELECT        
-       "Curation"                              AS context, 
-       nvl(final.date, final2.date)            AS date, 
-       nvl(final.timeband, final2.timeband)    AS timeband, 
-       ""                                      AS platform, 
-       nvl(final.geography_id, final2.geography_id)  AS geography_id, 
-       ""                                      AS app_version, 
-       nvl(final.common_content_id, final2.common_content_id)    AS common_content_id, 
-       ""                                      AS search_option, 
-       ( IF(1 == 2, 1, NULL) )                 AS logged_searches, 
-       ( IF(1 == 2, 1, NULL) )                 AS logged_no_results_found, 
-       final.likes                             AS likes, 
-       final.dislikes                          AS dislikes, 
-       final2.likes_watched_contents           AS likes_watched_contents,
-       final2.dislikes_watched_contents        AS dislikes_watched_contents,
-       final.ratings                           AS ratings,
-       final.average_ratings_value             AS average_ratings_value,
-       ( IF(1 == 2, 1, NULL) )                 AS logged_trailer_views, 
-       ( IF(1 == 2, 1, NULL) )                 AS logged_conversion_trailer_movie, 
-       ( IF(1 == 2, 1, NULL) )                 AS playlists, 
-       ( IF(1 == 2, 1, NULL) )                 AS seasons_in_playlists, 
-       ( IF(1 == 2, 1, NULL) )                 AS episodes_in_playlists, 
-       ( IF(1 == 2, 1, NULL) )                 AS logged_reminders, 
-       ( IF(1 == 2, 1, NULL) )                 AS anonymous_searches, 
-       ( IF(1 == 2, 1, NULL) )                 AS anonymous_no_results_found, 
-       ( IF(1 == 2, 1, NULL) )                 AS anonymous_trailer_views, 
-       ( IF(1 == 2, 1, NULL) )                 AS anonymous_conversion_trailer_movie, 
-       ( IF(1 == 2, 1, NULL) )                 AS anonymous_reminders 
-FROM(   
-    SELECT 
-        x1.date as date,
-        x1.timeband as timeband,
-        x1.geography_id as geography_id,
-        x1.common_content_id as common_content_id,
-        sum(x1.likes) as likes,
-        sum(x1.dislikes) as dislikes,
-        sum(x1.ratings) as ratings,
-        sum(x1.rating)/count(x1.user_id) as average_ratings_value
-    FROM(    
-        SELECT 
-               t2.daily_day                    AS date, 
-               GetTimeBand(t1.curation_date)   AS timeband, 
-               nvl(t4.geography_id, 0)         AS geography_id, 
-               nvl(t5.common_content_id, 0)    AS common_content_id,
-               t1.rating                       AS rating,
-               t1.user_id                      AS user_id,
-               IF(t1.is_liked = 'Y', 1, 0)     AS likes, 
-               IF(t1.is_disliked = 'Y', 1, 0)  AS dislikes,           
-               IF(t1.rating in ("1","2","3","4","5"), 1, 0) AS ratings
-        FROM   target_curation t1 
-               LEFT OUTER JOIN dim_calendar t2 
-                            ON ( t1.dt_reference = t2.day_identifier ) 
-               LEFT OUTER JOIN target_profiling t3 
-                            ON ( t1.user_id = t3.userid ) 
-               LEFT OUTER JOIN dim_geography t4 
-                            ON ( t3.regionname = t4.continent ) 
-                               AND ( t3.country = t4.state ) 
-                               AND ( t3.state = t4.region ) 
-               LEFT OUTER JOIN dim_common_catalog t5 
-                            ON ( t1.content_id = t5.detail_content_id ) 
-        WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
-    )x1
-    GROUP BY x1.date, x1.timeband, x1.geography_id, x1.common_content_id
-) final    
-LEFT OUTER JOIN(        
-        SELECT 
-               t2.daily_day                    AS date, 
-               GetTimeBand(t1.curation_date)   AS timeband, 
-               nvl(t4.geography_id, 0)         AS geography_id, 
-               nvl(t5.common_content_id, 0)    AS common_content_id,
-               SUM(IF(t1.is_liked = 'Y', 1 , 0)) AS likes_watched_contents,
-               SUM(IF(t1.is_disliked = 'Y', 1 , 0)) AS dislikes_watched_contents
-        FROM   target_curation t1 
-               JOIN target_watching t6 
-                 ON ( t1.content_id = t6.contentid )
-               LEFT OUTER JOIN dim_calendar t2 
-                            ON ( t1.dt_reference = t2.day_identifier ) 
-               LEFT OUTER JOIN target_profiling t3 
-                            ON ( t1.user_id = t3.userid ) 
-               LEFT OUTER JOIN dim_geography t4 
-                            ON ( t3.regionname = t4.continent ) 
-                               AND ( t3.country = t4.state ) 
-                               AND ( t3.state = t4.region ) 
-               LEFT OUTER JOIN dim_common_catalog t5 
-                            ON ( t1.content_id = t5.detail_content_id ) 
-        WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
-        GROUP BY t2.daily_day, GetTimeBand(t1.curation_date),  nvl(t4.geography_id, 0), nvl(t5.common_content_id, 0)
-  ) final2 ON final.date = final2.date 
-          AND final.timeband = final2.timeband
-          AND final.geography_id = final2.geography_id
-          AND final.common_content_id = final2.common_content_id;
+SELECT context, 
+       date, 
+       timeband, 
+       geography_id, 
+       common_content_id, 
+       search_option, 
+       count(logged_searches)          AS logged_searches, 
+       sum(logged_no_results_found)    AS logged_no_results_found, 
+       count(anonymous_searches)       AS anonymous_searches, 
+       sum(anonymous_no_results_found) AS anonymous_no_results_found 
+FROM   (SELECT "Search"                         AS context, 
+               final.date                       AS date, 
+               final.timeband                   AS timeband, 
+               ""                               AS platform, 
+               final.geography_id               AS geography_id, 
+               ""                               AS app_version, 
+               final.common_content_id          AS common_content_id, 
+               final.search_option              AS search_option, 
+               final.logged_searches            AS logged_searches, 
+               final.logged_no_results_found    AS logged_no_results_found, 
+               ( IF(1 == 2, 1, NULL) )          AS likes, 
+               ( IF(1 == 2, 1, NULL) )          AS dislikes, 
+               ( IF(1 == 2, 1, NULL) )          AS likes_watched_contents,
+               ( IF(1 == 2, 1, NULL) )          AS dislikes_watched_contents,        
+               ( IF(1 == 2, 1, NULL) )          AS ratings,
+               ( IF(1 == 2, 1, NULL) )          AS average_ratings_value, 
+               ( IF(1 == 2, 1, NULL) )          AS logged_trailer_views, 
+               ( IF(1 == 2, 1, NULL) )          AS logged_conversion_trailer_movie, 
+               ( IF(1 == 2, 1, NULL) )          AS playlists, 
+               ( IF(1 == 2, 1, NULL) )          AS seasons_in_playlists, 
+               ( IF(1 == 2, 1, NULL) )          AS episodes_in_playlists, 
+               ( IF(1 == 2, 1, NULL) )          AS logged_reminders, 
+               ( IF(1 == 2, 1, NULL) )          AS anonymous_trailer_views, 
+               final.anonymous_searches         AS anonymous_searches, 
+               final.anonymous_no_results_found AS anonymous_no_results_found, 
+               ( IF(1 == 2, 1, NULL) )          AS anonymous_conversion_trailer_movie, 
+               ( IF(1 == 2, 1, NULL) )          AS anonymous_reminders 
+        FROM   (SELECT * 
+                FROM  (SELECT * 
+                       FROM  (SELECT t2.daily_day                                     AS date, 
+                                     GetTimeBand(t1.search_date)                      AS timeband, 
+                                     nvl(t4.geography_id, 0)                          AS geography_id, 
+                                     nvl(t5.common_content_id, 0)                     AS common_content_id, 
+                                     t1.search_option                                 AS search_option, 
+                                     IF(t1.user_id != t1.device_id, t1.user_id, NULL) AS logged_searches, 
+                                     IF(t1.user_id = t1.device_id, t1.user_id, NULL)  AS anonymous_searches, 
+                                     t1.user_id                                       AS field1 
+                              FROM   target_search t1 
+                                     LEFT OUTER JOIN dim_calendar t2 
+                                                  ON ( t1.dt_reference = 
+                                                       t2.day_identifier ) 
+                                     LEFT OUTER JOIN target_profiling t3 
+                                                  ON ( t1.user_id = t3.userid ) 
+                                     LEFT OUTER JOIN dim_geography t4 
+                                                  ON ( t3.regionname = t4.continent ) 
+                                                     AND ( t3.country = t4.state ) 
+                                                     AND ( t3.state = t4.region ) 
+                                     LEFT OUTER JOIN dim_common_catalog t5 
+                                                  ON ( t1.content_id = t5.detail_content_id ) 
+                              WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
+                              ) temp1 
+                             LEFT OUTER JOIN (SELECT IF(t6.no_results_found = 'Y' AND t6.user_id != t6.device_id, 1, 0) AS logged_no_results_found, 
+                                                     IF(t6.no_results_found = 'Y' AND t6.user_id = t6.device_id, 1, 0)  AS anonymous_no_results_found, 
+                                                     t6.user_id                                                         AS field2 
+                                              FROM   target_postsearch t6 
+                                              WHERE  t6.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1 ) )
+                                              ) x1 
+                                          ON ( temp1.field1 = x1.field2 )
+                        ) x2
+                    ) final
+        ) a 
+GROUP  BY context, 
+          date, 
+          timeband, 
+          geography_id, 
+          common_content_id, 
+          search_option;
