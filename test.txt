@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Advertising.hql
 -- Created on:    03/11/2015
 -- Author:        Calabrese, Alessio
 -- Purpose:       Process to calculate the Advertising Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
-add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function GetTimeBand;
 drop temporary function Week_c_top;
@@ -206,7 +206,7 @@ LEFT OUTER JOIN (
     SELECT * 
     FROM (
      SELECT ua3.SESSIONID as SESSIONID3, ua3.DEVICEID as DEVICEID3, ua3.CONTENTID as CONTENTID3, ua3.TIMESTAMP as TIMESTAMP3, ua3.EVENTTYPE as EVENTTYPE3
-      FROM test_ac.target_user_action ua3
+      FROM target_user_action ua3
     WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), ua3.DT_REFERENCE) == 1
          AND ua3.USERID = ua3.DEVICEID
     ) x4
