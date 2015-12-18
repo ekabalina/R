@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_Logged_7D.hql
 -- Created on:    12/11/2015
 -- Authors:       Calabrese, A. - P.Melchiorre
 -- Purpose:       Process to calculate the VAR Logged 7D KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating a temporary table to store the 1^ subset of VAR Logged's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D_tmp01 (
@@ -34,12 +34,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp01';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp01
 -- accesses_7D
 -- number_used_platforms_7D
 -- number_used_devices_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp01
 select
@@ -117,10 +117,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp02';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp02
 -- playlists_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp02
 select
@@ -195,13 +195,13 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp03';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp03
 -- impressions_7D
 -- viewed_adv_7D
 -- clicks_through_7D
 -- skipped_adv_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp03
 select
@@ -284,12 +284,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp04';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp04
 -- likes_7D
 -- dislikes_7D
 -- ratings_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp04
 select
@@ -368,11 +368,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp05';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp05
 -- npvr_requests_7D
 -- npvr_views_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp05
 select
@@ -448,11 +448,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp06';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp06
 -- purchases_7D
 -- revenues_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp06
 select
@@ -528,10 +528,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp07';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp07
 -- reminders_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp07
 select
@@ -603,10 +603,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp08';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp08
 -- searches_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp08
 select
@@ -680,12 +680,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp09';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp09
 -- video_drop_off_7D
 -- average_video_drop_off_7D
 -- launched_apps_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp09
 select
@@ -765,11 +765,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp10';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp10
 -- video_views_7D
 -- video_playback_duration_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp10
 select
@@ -847,10 +847,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp11';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp11
 -- top_watched_category_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp11
 select
@@ -915,11 +915,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp12';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp12
 -- live_views_7D
 -- live_playback_duration_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp12
 select
@@ -997,10 +997,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp13';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp13
 -- TOP_WATCHED_CHANNEL_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp13
 select
@@ -1066,12 +1066,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_7D_tmp14';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D_tmp14
 -- views_7D
 -- playback_duration_7D
 -- downloads_7D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_7D_tmp14
 select
@@ -1122,10 +1122,10 @@ from
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_7D
 -- join all temporary tables
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_7D (
   date STRING,
