@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_EPG.hql
 -- Created on:    13/11/2015
 -- Authors:       Venkateswarlu, U.
 -- Purpose:       Process to calculate the VAR Epg KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating table to store the VAR Epg's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_content (
