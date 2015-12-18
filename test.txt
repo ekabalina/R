@@ -1,1 +1,131 @@
-test
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Accesses.hql
+-- Created on:    05/11/2015
+-- Author:        Nayak, Vinayak
+-- Purpose:       Process to calculate the Accesses Aggregate table
+-------------------------------------------------------------------------------
+
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+
+drop temporary function GetTimeBand;
+create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
+
+-- creating the table to store the Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_accesses (
+  CONTEXT STRING,
+  DATE STRING,
+  TIMEBAND STRING,
+  PLATFORM STRING,
+  GEOGRAPHY_ID STRING,
+  APP_VERSION STRING,
+  ACCESSES_DISTRIBUTION STRING,
+  LOGGED_ACCESSES INT,
+  FAILED_LOGINS INT,
+  LOGGED_ACCESSES_NO_VIDEO INT,
+  LOGGED_USERS INT,
+  NEW_LOGGED_USERS INT,
+  MAX_CONCURRENCY_TIME_PEAK STRING,
+  MAX_LOGGED_USERS_CONCURRENCY INT,
+  LOGGED_USERS_MORE_PLATFORMS INT,
+  DEVICES INT,
+  DISTINCT_USERS_DEVICES INT,
+  LOGGED_APP_STARTUP INT,
+  ANONYMOUS_ACCESSES INT,
+  ANONYMOUS_ACCESSES_NO_VIDEO INT,
+  ANONYMOUS_USERS INT,
+  NEW_ANONYMOUS_USERS INT,
+  MAX_ANONYMOUS_USERS_CONCURRENCY INT,
+  ANONYMOUS_APP_STARTUP INT
+)
+ROW FORMAT DELIMITED 
+FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n' 
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/ACCESSES/output';
+
+INSERT OVERWRITE TABLE agg_accesses
+SELECT
+  "Accesses"                                                                             AS CONTEXT,
+  x1.date                                                                                AS DATE,
+  GetTimeBand(x1.timestamp)                                                              AS TIMEBAND,
+  x1.channel                                                                             AS PLATFORM,
+  nvl(geography_id, 0)                                                                   AS GEOGRAPHY_ID,
+  x1.appversion                                                                          AS APP_VERSION,
+  ""                                                                                     AS ACCESSES_DISTRIBUTION,
+  sum(if(x1.userid != x1.deviceid, 1, 0))                                                AS LOGGED_ACCESSES,
+  sum(if(x1.userid != x1.deviceid AND x1.loginsuccess = 'N', 1, 0))                      AS FAILED_LOGINS,
+  sum(if(x1.userid != x1.deviceid AND x1.userid is null AND x1.sessionid is null, 1, 0)) AS LOGGED_ACCESSES_NO_VIDEO,
+  (if(1 == 2, 1, null))                                                                  AS LOGGED_USERS,
+  (if(1 == 2, 1, null))                                                                  AS NEW_LOGGED_USERS,
+  x1.minute                                                                              AS MAX_CONCURRENCY_TIME_PEAK,
+  sum(if(x1.userid != x1.deviceid, 1, 0))                                                AS MAX_LOGGED_USERS_CONCURRENCY,
+  (if(1 == 2, 1, null))                                                                  AS LOGGED_USERS_MORE_PLATFORMS,
+  (if(1 == 2, 1, null))                                                                  AS DEVICES,
+  (if(1 == 2, 1, null))                                                                  AS DISTINCT_USERS_DEVICES,
+  sum(if(x1.userid != x1.deviceid AND x1.eventtype = 'APPLICATIONSTARTUP', 1, 0))        AS LOGGED_APP_STARTUP,
+  sum (if(x1.userid = x1.deviceid, 1, 0))                                                AS ANONYMOUS_ACCESSES,
+  sum(if(x1.userid = x1.deviceid AND x1.userid is null AND x1.sessionid is null, 1, 0))  AS ANONYMOUS_ACCESSES_NO_VIDEO,
+  (if(1 == 2, 1, null))                                                                  AS ANONYMOUS_USERS,
+  (if(1 == 2, 1, null))                                                                  AS NEW_ANONYMOUS_USERS,
+  sum(if(x1.userid = x1.deviceid, 1, 0))                                                 AS MAX_ANONYMOUS_USERS_CONCURRENCY,
+  sum(if(x1.userid = x1.deviceid AND x1.eventtype = 'APPLICATIONSTARTUP', 1, 0))         AS ANONYMOUS_APP_STARTUP
+FROM (
+     SELECT
+            x5.*, t4.eventtype
+       FROM (
+            SELECT
+                   t3.geography_id AS GEOGRAPHY_ID,
+                   x4.*
+              FROM (
+                   SELECT
+                          t2.REGIONNAME AS REGIONNAME,
+                          t2.COUNTRY    AS COUNTRY,
+                          t2.STATE      AS STATE,
+                          x3.*
+                     FROM (
+                          SELECT
+                                 t2.daily_day AS DATE,
+                                 x2.*
+                            FROM (
+                                 SELECT
+                                        A.minute       AS minute,
+                                        B.channel      AS channel,
+                                        B.deviceid     AS deviceid,
+                                        B.userid       AS userid,
+                                        B.appversion   AS appversion,
+                                        B.dt_reference AS dt_reference,
+                                        B.timestamp    AS timestamp,
+                                        B.loginsuccess AS loginsuccess,
+                                        B.sessionid    AS sessionid
+                                   FROM (
+                                        SELECT
+                                               concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp)) AS minute,
+                                               count(t1.USERID)                                                              AS num
+                                          FROM target_login t1
+                                         WHERE t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                      GROUP BY concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp))
+                                       SORT BY num desc
+                                         LIMIT 1
+									    ) A
+                              LEFT JOIN target_login B ON A.minute=concat(to_date(B.timestamp),' ',hour(B.timestamp),':',minute(B.timestamp))
+                            ) x2
+                LEFT OUTER JOIN dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                          WHERE x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                        ) x3
+            LEFT OUTER JOIN target_profiling t2 on t2.userid = x3.userid
+                    ) x4
+        LEFT OUTER JOIN dim_geography t3 on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+            ) x5
+    LEFT OUTER JOIN target_user_action t4 on t4.userid = x5.userid AND x5.sessionid = t4.sessionid
+              WHERE t4.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+    ) x1
+GROUP BY
+  x1.date,
+  x1.timestamp,
+  x1.channel,
+  x1.geography_id,
+  x1.appversion,
+  x1.minute;
