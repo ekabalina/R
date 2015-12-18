@@ -1,148 +1,54 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_nPVR.hql
--- Created on:    05/11/2015
--- Author:        Venkateswarlu, U.
--- Purpose:       Process to calculate the nPVR Aggregate table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_nPVR_Play_Latency.hql
+-- Created on:    06/11/2015
+-- Author:        Geetha Nair, Parvathy
+-- Purpose:       Process to calculate the nPVR Play Latency Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+
+drop temporary function GetPlayLatency;
+create temporary function GetPlayLatency as 'com.accenture.AVSA.hive.UDF.GetPlayLatency';
 
 drop temporary function GetTimeBand;
 create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
 
--- creating a creating table to store the nPVR's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_npvr (
-  context STRING,
-  date STRING,
-  timeband STRING,
-  platform STRING,
-  geography_id STRING,
-  device_type STRING,
-  status STRING,
-  npvr_channel STRING,
-  npvr_show STRING,
-  play_latency STRING,
-  deletion_latency STRING,
-  npvr_requests INT,  
-  npvr_views INT,  
-  npvr_duration_min DOUBLE,  
-  npvr_deletions INT,  
-  max_concurrency_time_peak STRING,  
-  max_npvr_concurrency INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/NPVR/output';
-
 -- inserting data into table agg_npvr
-INSERT OVERWRITE TABLE agg_npvr
-SELECT  final.context as context,
-        final.date as date,
-        final.timeband as timeband, 
-        final.platform as platform,
-        final.GEOGRAPHY_ID as GEOGRAPHY_ID,
-        final.device_type as device_type,
-        ""                  as status,
-        final.npvr_channel as npvr_channel,
-        final.npvr_show as npvr_show,
-        (if(1 == 2, 1, null)) as play_latency,
-        (if(1 == 2, 1, null)) as deletion_latency,
-        (if(1 == 2, 1, null)) as npvr_requests,
-        count(final.user_id) as npvr_views,
-        sum(final.NPVR_DURATION_MIN) as npvr_duration_min,
-        (if(1 == 2, 1, null)) AS npvr_deletions,  
-        final.max_concurrency_time_peak as max_concurrency_time_peak,
-        final.max_npvr_concurrency as max_npvr_concurrency
-    from (select  nvl(temp1.context, temp2.context)            AS context,
-            nvl(temp1.date, temp2.date)                        AS date,
-            nvl(temp1.timeband, temp2.timeband)                AS timeband,
-            nvl(temp1.platform, temp2.platform)                AS platform,
-            nvl(temp1.device_type, temp2.device_type)          AS device_type,
-            nvl(temp1.npvr_channel, temp2.npvr_channel)        AS npvr_channel,
-            nvl(temp1.npvr_show, temp2.npvr_show)              AS npvr_show,
-            temp1.npvr_duration_min                            AS npvr_duration_min,
-            temp2.max_concurrency_time_peak                    AS max_concurrency_time_peak,
-            temp2.max_npvr_concurrency                         AS max_npvr_concurrency,
-            temp1.user_id                                      AS user_id,
-            temp1.GEOGRAPHY_ID as GEOGRAPHY_ID
-        from (select   'nPVR'                     AS context,
-                t2.daily_day                      AS date,
-                GetTimeBand(t1.timestamp)         AS timeband,
-                t1.epg_channel                    AS platform,
-                t1.device_type                    AS device_type,
-                t1.channel                        AS npvr_channel,
-                t1.epg_show                       AS npvr_show,
-                t1.user_id                        AS user_id,
-                nvl(t5.geography_id, 0)           AS GEOGRAPHY_ID,
-                DATEDIFF(to_date(t1.timestamp), to_date(t3.timestamp)) as npvr_duration_min
-                  FROM target_npvr t1
-                LEFT OUTER JOIN dim_calendar t2
-                     ON t1.dt_reference = t2.day_identifier
-                LEFT OUTER JOIN target_npvr t3 
-                    ON t1.user_id = t3.user_id AND t1.session_id = t3.session_id
-                ----    
-                LEFT OUTER JOIN target_profiling t6
-                      ON ( t1.user_id = t6.userid )
-                LEFT OUTER JOIN dim_geography t5
-                        ON ( t6.regionname = t5.continent )
-                        AND ( t6.country = t5.state )
-                         AND ( t6.state = t5.region )                     
-                -----                  
-                 WHERE (t1.recording_action = 'PLAY') 
-                         AND (t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)))
-                         AND (t3.recording_action = "STOP")                                   
-            ) temp1
-    FULL OUTER JOIN(
-                 select
-                  'nPVR' as context,
-                  x3.date as date,
-                  x3.timeband as timeband,
-                  x3.platform as platform,
-                  x3.device_type as device_type,
-                  x3.npvr_channel as npvr_channel,
-                  x3.npvr_show as npvr_show,
-                  x3.minute as max_concurrency_time_peak,
-                  x3.num as max_npvr_concurrency
-                from( select x2.*,t2.daily_day as date
-                  from (select
-                           A.minute as minute,
-                           A.num as num,
-                           GetTimeBand(B.timestamp) as timeband,
-                           B.epg_channel as platform,
-                           B.device_type as device_type,
-                           B.channel as npvr_channel,
-                           B.dt_reference as dt_reference,
-                           B.epg_show  as npvr_show
-                    FROM(
-                        SELECT
-                            concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp)) as minute,
-                            count(t1.USER_ID) as num
-                        FROM target_npvr t1
-                        WHERE t1.DT_REFERENCE = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
-                        GROUP BY concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp))
-                        SORT BY num desc
-                        LIMIT 1) A
-                    LEFT JOIN target_npvr B ON A.minute=concat(to_date(B.timestamp),' ',hour(B.timestamp),':',minute(B.timestamp))
-                    )x2
-                LEFT OUTER JOIN dim_calendar t2 on x2.dt_reference = t2.day_identifier) x3 
-                ) temp2 ON (temp1.context = temp2.context)
-                       AND (temp2.date = temp1.date) 
-                       AND (temp1.timeband = temp2.timeband) 
-                       AND (temp1.platform  = temp2.platform) 
-                       AND (temp1.device_type = temp2.device_type) 
-                       AND (temp1.npvr_channel = temp2.npvr_channel) 
-                       AND (temp1.npvr_show = temp2.npvr_show)
-                 ) final
-            GROUP BY    final.context,
-                        final.date,
-                        final.timeband,
-                        final.platform,
-                        final.GEOGRAPHY_ID,
-                        final.device_type,
-                        final.npvr_channel,
-                        final.npvr_show,
-                        final.max_concurrency_time_peak,
-                        final.max_npvr_concurrency;
+INSERT INTO TABLE agg_npvr
+SELECT   "nPVR Play Latency"                               AS CONTEXT, 
+         t2.daily_day                                      AS DATE,
+         ""                                                AS TIMEBAND,
+         t1.channel                                        AS PLATFORM,
+         nvl(t5.geography_id, 0)                           AS GEOGRAPHY_ID,
+         t1.device_type                                    AS DEVICE_TYPE,
+         ""                                                AS STATUS,
+         t1.epg_channel                                    AS NPVR_CHANNEL,
+         t1.epg_show                                       AS NPVR_SHOW,
+         GetPlayLatency(t1.airing_starttime, t1.timestamp) AS PLAY_LATENCY,
+         ""                                                AS DELETION_LATENCY,
+         ( IF(1 == 2, 1, NULL) )                           AS NPVR_REQUESTS,
+         count(t1.user_id)                                 AS NPVR_VIEWS,
+         ( IF(1 == 2, 1, NULL) )                           AS NPVR_DURATION_MIN,
+         ( IF(1 == 2, 1, NULL) )                           AS NPVR_DELETIONS,
+         ( IF(1 == 2, 1, NULL) )                           AS MAX_CONCURRENCY_TIME_PEAK,
+         ( IF(1 == 2, 1, NULL) )                           AS MAX_NPVR_CONCURRENCY
+FROM   target_npvr t1 
+       LEFT OUTER JOIN dim_calendar t2 
+                    ON ( t1.dt_reference = t2.day_identifier )
+       LEFT OUTER JOIN target_profiling t3
+                    ON ( t1.user_id = t3.userid )
+       LEFT OUTER JOIN dim_geography t5
+                    ON ( t3.regionname = t5.continent )
+                   AND ( t3.country = t5.state )
+                   AND ( t3.state = t5.region )
+       WHERE t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
+       AND   t1.RECORDING_ACTION = "PLAY"   
+GROUP  BY "nPVR Play Latency",
+          t2.daily_day, 
+          t1.channel, 
+          nvl(t5.geography_id, 0),
+          t1.device_type,
+          t1.epg_channel,
+          t1.epg_show,
+          GetPlayLatency(t1.airing_starttime, t1.timestamp);
