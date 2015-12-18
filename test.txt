@@ -1,20 +1,22 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Views_Daily.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Views_Monthly.hql
 -- Created on:    29/10/2015
 -- Author:        Fumagalli, Luca
--- Purpose:       Process to calculate the Views Aggregate (Daily) table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Views Aggregate (Monthly) table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
 
+drop temporary function Month_c_top;
+create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
 drop temporary function GetMinutesThreshold;
 create temporary function GetMinutesThreshold as 'com.accenture.AVSA.hive.UDF.GetMinutesThreshold';
 
 -- inserting data into table agg_views
-INSERT INTO TABLE agg_views
-SELECT
-    "Daily Views" as CONTEXT, 
+INSERT INTO TABLE agg_views 
+SELECT 
+    "Monthly Views" as CONTEXT, 
     x1.DATE as DATE, 
     "" as TIMEBAND,
     "" as PLATFORM,
@@ -22,14 +24,14 @@ SELECT
     "" as APP_VERSION,
     "" as COMMON_CONTENT_ID,
     x1.MINUTES_THRESHOLD as MINUTES_THRESHOLD,
-    (if(1 == 2, 1, null)) as LOGGED_VIEWS, 
+    (if(1 == 2, 1, null)) as LOGGED_VIEWS,
     (if(1 == 2, 1, null)) as LOGGED_VIEWS_DURATION_MIN,
     (if(1 == 2, 1, null)) as LOGGED_VIEWS_AFTER_DETAIL,
     (if(1 == 2, 1, null)) as LOGGED_DETAIL_VIEWS,
     (if(1 == 2, 1, null)) as LOGGED_DETAIL_NO_VIEWS,
     (if(1 == 2, 1, null)) as LOGGED_SKIPPED_VIEWS,
     count(distinct(case when x1.deviceid != x1.userid then x1.userid end)) as LOGGED_USERS,
-    count(distinct(case when new.deviceid != new.userid then new.userid end)) as NEW_LOGGED_USERS,
+    (if(1 == 2, 1, null)) as NEW_LOGGED_USERS,
     count(distinct(x1.sessionid)) as SESSIONS,
     (if(1 == 2, 1, null)) as MAX_CONCURRENCY_TIME_PEAK,
     (if(1 == 2, 1, null)) as MAX_LOGGED_USERS_CONCURRENCY,
@@ -41,7 +43,7 @@ SELECT
     (if(1 == 2, 1, null)) as ANONYMOUS_DETAIL_NO_VIEWS,
     (if(1 == 2, 1, null)) as ANONYMOUS_SKIPPED_VIEWS,
     count(distinct(case when x1.deviceid == x1.userid then x1.userid end)) as ANONYMOUS_USERS,
-    count(distinct(case when new.deviceid == new.userid then new.userid end)) as NEW_ANONYMOUS_USERS,
+    (if(1 == 2, 1, null)) as NEW_ANONYMOUS_USERS,
     (if(1 == 2, 1, null)) as MAX_ANONYMOUS_USERS_CONCURRENCY
 from (
     select 
@@ -66,12 +68,12 @@ from (
                t1.sessionid as sessionid
                from target_user_action t1
                where 
-                     t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and  
+                     t1.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and  
                      t1.playbackstopposition is not null and
                      t1.eventtype = "VIDEOEND"
                 )x2 
             left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-            where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+            where x2.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
             )x3
         left outer join target_profiling t2
         on t2.userid = x3.userid
@@ -80,45 +82,5 @@ from (
     on x4.REGIONNAME = t3.CONTINENT
         AND x4.COUNTRY = t3.STATE
         AND x4.STATE = t3.REGION
-) x1
-left outer join(
-        select
-             union_new.dt_reference as dt_reference,
-             union_new.userid as userid,
-             union_new.MINUTES_THRESHOLD,
-             union_new.deviceid as deviceid,
-             union_new.sessionid as sessionid
-        from(
-            select
-               t1.dt_reference as dt_reference,
-               t1.userid as userid,
-               GetMinutesThreshold(t1.playbackstopposition) as MINUTES_THRESHOLD,
-               t1.deviceid as deviceid,
-               t1.sessionid as sessionid
-            from target_user_action t1 join target_customer_base_device t0 on t1.deviceid = t0.deviceid
-            where 
-                t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and  
-                 t1.playbackstopposition is not null and
-                 t1.eventtype = "VIDEOEND" and
-                 t1.deviceid = t1.userid and -- is anonymous
-                 to_date(t0.first_session_date) = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and
-                 t1.dt_reference = to_date(t0.first_session_date)
-            union all -- union of the new users (anonymous and registered)
-            select
-               t1.dt_reference as dt_reference,
-               t1.userid as userid,
-               GetMinutesThreshold(t1.playbackstopposition) as MINUTES_THRESHOLD,
-               t1.deviceid as deviceid,
-               t1.sessionid as sessionid
-           from target_user_action t1 join target_customer_base_login t0 on t1.userid = t0.userid
-           where 
-                 t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and  
-                 t1.playbackstopposition is not null and
-                 t1.eventtype = "VIDEOEND" and
-                 t1.deviceid != t1.userid and -- is registered
-                 to_date(t0.login_date) = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and
-                 t1.dt_reference = to_date(t0.login_date)
-        )union_new
-) new
-on x1.userid = new.userid
+)x1
 group by x1.DATE, x1.MINUTES_THRESHOLD, x1.geography_id;
