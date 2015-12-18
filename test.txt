@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_QoS.hql
 -- Created on:    02/11/2015
 -- Author:        Venkateswarlu, U.
 -- Purpose:       Process to calculate the QoS Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
-add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function GetTimeBand;
 create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
