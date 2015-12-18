@@ -1,12 +1,13 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Views.hql
 -- Created on:    30/10/2015
 -- Authors:       Stefanelli, Adriano; Fumagalli, Luca; Melchiorre, Pierpaolo
 -- Purpose:       Process to calculate the Views Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
-add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+
 
 drop temporary function GetTimeBand;
 create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
@@ -32,14 +33,14 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VIEWS/view01'; 
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: view_01
 -- LOGGED_VIEWS
 -- LOGGED_VIEWS_DURATION_MIN
 -- LOGGED_DOWNLOADS
 -- ANONYMOUS_VIEWS
 -- ANONYMOUS_VIEWS_DURATION_MIN
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE view_01
 SELECT "Views"                                                          AS CONTEXT,
@@ -97,13 +98,13 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VIEWS/view02';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: view_02
 -- LOGGED_DETAIL_VIEWS
 -- LOGGED_SKIPPED_VIEWS
 -- ANONYMOUS_DETAIL_VIEWS
 -- ANONYMOUS_SKIPPED_VIEWS
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE view_02
 SELECT "Views"                                                                             AS CONTEXT,
@@ -155,10 +156,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VIEWS/view03';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: view_03
 -- ANONYMOUS_VIEWS_AFTER_DETAIL
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE view_03
 SELECT "Views"                              AS CONTEXT,
@@ -230,10 +231,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VIEWS/view04';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: view_04
 -- LOGGED_VIEWS_AFTER_DETAIL
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE view_04
 SELECT "Views"                           AS CONTEXT,
@@ -305,10 +306,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VIEWS/view05';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: view_05
 -- ANONYMOUS_DETAIL_NO_VIEWS
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE view_05
 SELECT "Views"                     AS CONTEXT,
@@ -382,10 +383,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VIEWS/view06';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: view_06
 -- LOGGED_DETAIL_NO_VIEWS
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE view_06
 SELECT "Views"                     AS CONTEXT,
@@ -461,12 +462,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VIEWS/view07';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: view_07
 -- MAX_CONCURRENCY_TIME_PEAK
 -- MAX_LOGGED_USERS_CONCURRENCY
 -- MAX_ANONYMOUS_USERS_CONCURRENCY
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE view_07
 SELECT 
