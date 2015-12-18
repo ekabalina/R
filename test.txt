@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_Logged_60D.hql
 -- Created on:    12/11/2015
 -- Authors:       Calabrese, A. - P.Melchiorre
 -- Purpose:       Process to calculate the VAR Logged 60D KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating a temporary table to store the 1^ subset of VAR Logged's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_60D_tmp01 (
@@ -34,12 +34,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp01';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp01
 -- accesses_60D
 -- number_used_platforms_60D
 -- number_used_devices_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp01
 select
@@ -117,10 +117,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp02';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp02
 -- playlists_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp02
 select
@@ -195,13 +195,13 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp03';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp03
 -- impressions_60D
 -- viewed_adv_60D
 -- clicks_through_60D
 -- skipped_adv_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp03
 select
@@ -284,12 +284,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp04';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp04
 -- likes_60D
 -- dislikes_60D
 -- ratings_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp04
 select
@@ -368,11 +368,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp05';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp05
 -- npvr_requests_60D
 -- npvr_views_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp05
 select
@@ -448,11 +448,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp06';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp06
 -- purchases_60D
 -- revenues_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp06
 select
@@ -528,10 +528,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp07';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp07
 -- reminders_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp07
 select
@@ -603,10 +603,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp08';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp08
 -- searches_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp08
 select
@@ -680,12 +680,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp09';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp09
 -- video_drop_off_60D
 -- average_video_drop_off_60D
 -- launched_apps_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp09
 select
@@ -765,11 +765,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp10';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp10
 -- video_views_60D
 -- video_playback_duration_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp10
 select
@@ -847,10 +847,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp11';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp11
 -- TOP_WATCHED_CATEGORY_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp11
 select
@@ -915,11 +915,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp12';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp12
 -- live_views_60D
 -- live_playback_duration_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp12
 select
@@ -997,10 +997,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp13';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp13
 -- top_watched_channel_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp13
 select
@@ -1066,12 +1066,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_LOGGED/var_logged_60D_tmp14';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D_tmp14
 -- views_60D
 -- playback_duration_60D
 -- downloads_60D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_logged_60D_tmp14
 select
@@ -1122,10 +1122,10 @@ from
 group by user_id) tmp
 where vlm.user_id = tmp.user_id;
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_logged_60D
 -- join all temporary tables
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_60D (
   date STRING,
