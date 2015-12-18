@@ -1,12 +1,12 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Advertising.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Advertising_Daily.hql
 -- Created on:    03/11/2015
 -- Author:        Calabrese, Alessio
--- Purpose:       Process to calculate the Advertising Aggregate table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Advertising Aggregate (Daily) table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
 drop temporary function GetTimeBand;
 drop temporary function Week_c_top;
@@ -15,230 +15,132 @@ create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBan
 create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
 create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
 
--- creation of aggregate Advertising table
-CREATE TABLE IF NOT EXISTS agg_advertising (
-  context STRING,
-  date DATE,
-  timeband STRING,
-  platform STRING,
-  ad_format STRING,
-  geography_id INT,
-  common_content_id INT,
-  advertising_id INT,
-  logged_impressions INT,
-  logged_clicks_through INT,
-  logged_viewed_ads INT,
-  logged_skipped_ads INT,
-  logged_drop_off INT,
-  logged_users INT,
-  anonymous_impressions INT,
-  anonymous_clicks_through INT,
-  anonymous_viewed_ads INT,
-  anonymous_skipped_ads INT,
-  anonymous_drop_off INT,
-  anonymous_users INT
-)
-ROW FORMAT DELIMITED 
-FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n' 
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ADVERTISING/output';
-
 -- inserting data into table agg_advertising
-INSERT OVERWRITE TABLE agg_advertising
-SELECT   context, 
-         date, 
-         timeband, 
-         platform, 
-         ad_format, 
-         geography_id, 
-         common_content_id, 
-         advertising_id, 
-         sum(logged_impressions)             AS logged_impressions, 
-         sum(logged_clicks_through)          AS logged_clicks_through, 
-         sum(logged_viewed_ads)              AS logged_viewed_ads, 
-         sum(logged_skipped_ads)             AS logged_skipped_ads, 
-         count(DISTINCT(logged_drop_off))    AS logged_drop_off, 
-         logged_users, 
-         sum(anonymous_impressions)          AS anonymous_impressions, 
-         sum(anonymous_clicks_through)       AS anonymous_clicks_through, 
-         sum(anonymous_viewed_ads)           AS anonymous_viewed_ads, 
-         sum(anonymous_skipped_ads)          AS anonymous_skipped_ads, 
-         count(DISTINCT(anonymous_drop_off)) AS anonymous_drop_off, 
-         anonymous_users 
+INSERT INTO TABLE agg_advertising
+SELECT context, 
+       date, 
+       "" AS timeband, 
+       "" AS platform, 
+       "" AS ad_format, 
+       geography_id, 
+       "" AS common_content_id, 
+       "" AS advertising_id, 
+       logged_impressions, 
+       logged_clicks_through, 
+       logged_viewed_ads, 
+       logged_skipped_ads, 
+       logged_drop_off, 
+       count(DISTINCT(logged_users)) AS logged_users, 
+       anonymous_impressions, 
+       anonymous_clicks_through, 
+       anonymous_viewed_ads, 
+       anonymous_skipped_ads, 
+       anonymous_drop_off, 
+       count(DISTINCT(anonymous_users)) AS anonymous_users 
+FROM   (
+  SELECT "Daily Advertising"                                                                         AS context, 
+         final.daily_day                                                                             AS date, 
+         nvl(final.geography_id, 0)                                                                  AS geography_id, 
+         (IF(1 == 2, 1, NULL))                                                                       AS logged_impressions, 
+         (IF(1 == 2, 1, NULL))                                                                       AS logged_clicks_through, 
+         (IF(1 == 2, 1, NULL))                                                                       AS logged_viewed_ads, 
+         (IF(1 == 2, 1, NULL))                                                                       AS logged_skipped_ads, 
+         (IF(1 == 2, 1, NULL))                                                                       AS logged_drop_off, 
+         (IF(final.completion_percentage == 100 AND final.user_id IS NOT NULL, final.user_id, NULL)) AS logged_users, 
+         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_impressions, 
+         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_clicks_through, 
+         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_viewed_ads, 
+         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_skipped_ads, 
+         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_drop_off, 
+         (IF(final.completion_percentage == 100 AND final.user_id IS NULL, final.device_id, NULL))   AS anonymous_users 
   FROM   (
-    SELECT "Advertising"                                                                AS context, 
-           final.daily_day                                                              AS date, 
-           GetTimeBand(final.timestamp)                                                 AS timeband, 
-           final.platform                                                               AS platform, 
-           final.ad_format                                                              AS ad_format, 
-           nvl(final.common_content_id, 0)                                              AS common_content_id, 
-           nvl(final.geography_id, 0)                                                   AS geography_id, 
-           final.ad_id                                                                  AS advertising_id, 
-           (IF(final.user_id IS NOT NULL, 1, 0))                                        AS logged_impressions, 
-           (IF(final.has_been_clicked = 'Y' AND final.user_id IS NOT NULL, 1, 0))       AS logged_clicks_through, 
-           (IF(final.completion_percentage == 100 AND final.user_id IS NOT NULL, 1, 0)) AS logged_viewed_ads, 
-           (IF(final.has_been_skipped = 'Y' AND final.user_id IS NOT NULL, 1, 0))       AS logged_skipped_ads, 
-           (concat(final.deviceid1, final.sessionid1, final.contentid1))                AS logged_drop_off, 
-           (IF(1 == 2, 1, NULL))                                                        AS logged_users, 
-           (IF(final.completion_percentage == 100 AND final.user_id IS NULL, 1, 0))     AS anonymous_impressions, 
-           (IF(final.has_been_clicked = 'Y' AND final.user_id IS NULL, 1, 0))           AS anonymous_clicks_through, 
-           (IF(final.completion_percentage == 100 AND final.user_id IS NULL, 1, 0))     AS anonymous_viewed_ads, 
-           (IF(final.has_been_skipped = 'Y' AND final.user_id IS NULL, 1, 0))           AS anonymous_skipped_ads, 
-           (concat(final.deviceid3, final.sessionid3, final.contentid3))                AS anonymous_drop_off, 
-           (IF(1 == 2, 1, NULL))                                                        AS anonymous_users 
+    SELECT *
     FROM   (
-      SELECT * FROM   (
-        SELECT * FROM   (
-          SELECT * FROM   (
-            SELECT * FROM   (
-              SELECT
-                j1.dt_reference, 
-                j1.timestamp, 
-                j1.user_id, 
-                j1.device_id, 
-                j1.session_id, 
-                j1.device_containers_id, 
-                j1.ticket_id, 
-                j1.platform, 
-                j1.completion_percentage, 
-                j1.has_been_clicked, 
-                j1.has_been_skipped, 
-                j1.ad_format, 
-                j1.shares_aliases, 
-                j1.content_id, 
-                j1.ad_id, 
-                j1.tags, 
-                j1.location, 
-                j1.common_content_id, 
-                j1.regionname, 
-                j1.country, 
-                j1.state, 
-                t3.geography_id, 
-                t3.continent, 
-                t3.state AS state2, 
-                t3.region 
-              FROM   (  
-                SELECT
-                  t4.dt_reference, 
-                  t4.timestamp, 
-                  t4.user_id, 
-                  t4.device_id, 
-                  t4.session_id, 
-                  t4.device_containers_id, 
-                  t4.ticket_id, 
-                  t4.platform, 
-                  t4.completion_percentage, 
-                  t4.has_been_clicked, 
-                  t4.has_been_skipped, 
-                  t4.ad_format, 
-                  t4.shares_aliases, 
-                  t4.content_id, 
-                  t4.ad_id, 
-                  t4.tags, 
-                  t4.location, 
-                  t4.common_content_id, 
-                  t5.regionname, 
-                  t5.country, 
-                  t5.state 
-                FROM (
-                  SELECT *
-                  FROM (
-                    SELECT * 
-                    FROM   target_impression 
-                    WHERE  datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), dt_reference) == 1
-                  ) t6
-           LEFT OUTER JOIN dim_common_catalog t7
-                        ON t6.CONTENT_ID = t7.DETAIL_CONTENT_ID
-                ) t4
-          LEFT OUTER JOIN target_profiling t5
-                       ON t4.USER_ID = t5.USERID
-              ) j1
-        LEFT OUTER JOIN dim_geography t3
-                     ON j1.REGIONNAME = t3.CONTINENT
-                    AND j1.COUNTRY = t3.STATE
-                    AND j1.STATE = t3.REGION
-            ) x3
-          ) t1
-      LEFT OUTER JOIN dim_calendar t2
-                   ON t1.dt_reference = t2.day_identifier
-        ) i1
-    LEFT OUTER JOIN (
       SELECT * 
-      FROM (
-        SELECT *
-        FROM (
+      FROM   (
+        SELECT
+          j1.dt_reference, 
+          j1.timestamp, 
+          j1.user_id, 
+          j1.device_id, 
+          j1.session_id, 
+          j1.device_containers_id, 
+          j1.ticket_id, 
+          j1.platform, 
+          j1.completion_percentage, 
+          j1.has_been_clicked, 
+          j1.has_been_skipped, 
+          j1.ad_format, 
+          j1.shares_aliases, 
+          j1.content_id, 
+          j1.ad_id, 
+          j1.tags, 
+          j1.location, 
+          j1.common_content_id, 
+          j1.regionname, 
+          j1.country, 
+          j1.state, 
+          t3.geography_id, 
+          t3.continent, 
+          t3.state AS state2, 
+          t3.region 
+        FROM   (  
           SELECT
-            ua1.sessionid AS SESSIONID1, 
-            ua1.deviceid  AS DEVICEID1, 
-            ua1.contentid AS CONTENTID1, 
-            ua1.timestamp AS TIMESTAMP1, 
-            ua1.eventtype AS EVENTTYPE1 
-       FROM target_user_action ua1 
-      WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), ua1.dt_reference) == 1 
-        AND ua1.userid != ua1.deviceid
-        ) x1 
-    LEFT OUTER JOIN (
-      SELECT 
-       ua2.sessionid AS SESSIONID2, 
-       ua2.deviceid  AS DEVICEID2, 
-       ua2.contentid AS CONTENTID2, 
-       ua2.eventtype AS EVENTTYPE2 
-  FROM target_user_action ua2 
- WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), ua2.dt_reference) == 1 
-   AND ua2.eventtype = "VIDEOSTART" 
-   AND ua2.userid != ua2.deviceid
-    ) x2
-                ON x1.SESSIONID1=x2.SESSIONID2
-               AND x1.DEVICEID1=x2.DEVICEID2
-               AND x1.CONTENTID1=x2.CONTENTID2) x3
-             WHERE x3.SESSIONID2 is NULL
-               AND x3.DEVICEID2 is NULL
-               AND x3.CONTENTID2 is NULL
-        ) temp1
-    ON i1.content_id = temp1.contentid1
-   AND i1.session_id = temp1.sessionid1
-   AND i1.device_id = temp1.deviceid1
-      ) temp2
-LEFT OUTER JOIN (
-  SELECT * 
-  FROM (
-    SELECT * 
-    FROM (
-     SELECT ua3.SESSIONID as SESSIONID3, ua3.DEVICEID as DEVICEID3, ua3.CONTENTID as CONTENTID3, ua3.TIMESTAMP as TIMESTAMP3, ua3.EVENTTYPE as EVENTTYPE3
-      FROM target_user_action ua3
-    WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), ua3.DT_REFERENCE) == 1
-         AND ua3.USERID = ua3.DEVICEID
-    ) x4
-LEFT OUTER JOIN (
-  SELECT
-    ua4.sessionid AS SESSIONID4, 
-    ua4.deviceid  AS DEVICEID4, 
-    ua4.contentid AS CONTENTID4, 
-    ua4.eventtype AS EVENTTYPE4 
-  FROM target_user_action ua4 
- WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), ua4.dt_reference) == 1 
-   AND ua4.eventtype = "VIDEOSTART" 
-   AND ua4.userid = ua4.deviceid
-   ) x5
-             ON x4.SESSIONID3=x5.SESSIONID4
-            AND x4.DEVICEID3=x5.DEVICEID4
-            AND x4.CONTENTID3=x5.CONTENTID4) x6
-          WHERE x6.SESSIONID4 is NULL
-            AND x6.DEVICEID4 is NULL
-            AND x6.CONTENTID4 is NULL
-    ) temp3
-           ON temp2.content_id = temp3.contentid3
-          AND temp2.session_id = temp3.sessionid3
-          AND temp2.device_id = temp3.deviceid3) final) a
-     GROUP BY 
-       context,
-       date,
-       timeband,
-       platform,
-       ad_format,
-       geography_id,
-       common_content_id,
-       advertising_id,
-       logged_users,
-       anonymous_users;
+            t4.dt_reference, 
+            t4.timestamp, 
+            t4.user_id, 
+            t4.device_id, 
+            t4.session_id, 
+            t4.device_containers_id, 
+            t4.ticket_id, 
+            t4.platform, 
+            t4.completion_percentage, 
+            t4.has_been_clicked, 
+            t4.has_been_skipped, 
+            t4.ad_format, 
+            t4.shares_aliases, 
+            t4.content_id, 
+            t4.ad_id, 
+            t4.tags, 
+            t4.location, 
+            t4.common_content_id, 
+            t5.regionname, 
+            t5.country, 
+            t5.state 
+          FROM (
+            SELECT *
+            FROM (
+              SELECT * 
+              FROM   target_impression 
+              WHERE  datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), dt_reference) == 1 
+            ) t6
+   LEFT OUTER JOIN dim_common_catalog t7
+                ON t6.CONTENT_ID = t7.DETAIL_CONTENT_ID
+          ) t4
+   LEFT OUTER JOIN target_profiling t5
+                ON t4.USER_ID = t5.USERID
+        ) j1
+   LEFT OUTER JOIN dim_geography t3
+                ON j1.REGIONNAME = t3.CONTINENT
+               AND j1.COUNTRY = t3.STATE
+               AND j1.STATE = t3.REGION
+        ) x3
+    ) t1
+   LEFT OUTER JOIN dim_calendar t2
+                ON t1.dt_reference = t2.day_identifier
+    ) final
+) a
+GROUP BY
+  context,
+  date, 
+  geography_id, 
+  logged_impressions, 
+  logged_clicks_through, 
+  logged_viewed_ads, 
+  logged_skipped_ads, 
+  logged_drop_off, 
+  anonymous_impressions, 
+  anonymous_clicks_through, 
+  anonymous_viewed_ads, 
+  anonymous_skipped_ads, 
+  anonymous_drop_off;
