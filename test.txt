@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_VOD_Master.hql
 -- Created on:    10/11/2015
 -- Author:        Geetha Nair, Parvathy
 -- Purpose:       Process to load the dimensions in order to simplify calculation of KPI
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creation of  table for var_vod_master
 CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_master (
