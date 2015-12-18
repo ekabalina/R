@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_EPG_7d.hql
 -- Created on:    13/11/2015
 -- Authors:       Venkateswarlu, U.
 -- Purpose:       Process to calculate the VAR Epg 7d KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating a temporary table to store the 1^ subset of EPG's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp01 (     
@@ -26,7 +26,7 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE  
 LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp01';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d_tmp01
 -- LOGGED_VIEWERS_7d
 -- ANONYMOUS_VIEWERS_7d
@@ -36,7 +36,7 @@ LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp01';
 -- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEWER_7d
 -- PLAYBACK_DURATION_MIN_PER_LOGGED_VIEW_7d
 -- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEW_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_epg_7d_tmp01
 SELECT 
@@ -101,10 +101,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp02';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d_tmp02
 -- VIEWS_SUBSEQUENT_DETAILS_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_epg_7d_tmp02
 SELECT 
@@ -160,11 +160,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp03';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d_tmp03
 -- PURCHASES_7d
 -- REVENUES_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_epg_7d_tmp03
 SELECT 
@@ -209,10 +209,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp04';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d_tmp04
 -- DOWNLOADS_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_epg_7d_tmp04
 SELECT 
@@ -254,10 +254,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp05';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d_tmp05
 -- PLAYLISTS_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_epg_7d_tmp05
 SELECT 
@@ -299,10 +299,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp06';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d_tmp06
 -- IMPRESSIONS_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_epg_7d_tmp06
 SELECT 
@@ -347,13 +347,13 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp07';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d_tmp07
 -- LIKES_7d
 -- DISLIKES_7d
 -- RATINGS_7d
 -- AVG_RATING_VALUE_7d
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_epg_7d_tmp07
 SELECT 
@@ -390,10 +390,10 @@ LEFT OUTER JOIN (
    t2.content_id
 ) b ON ( vem.content_id = b.content_id );
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_epg_7d
 -- JOIN ALL TEMPORARY TABLES
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d (
   content_id STRING,
