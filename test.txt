@@ -1,28 +1,446 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_VAR_EPG_Master.hql
--- Created on:    10/11/2015
--- Author:        Geetha Nair, Parvathy
--- Purpose:       Process to load the dimensions in order to simplify calculation of KPI
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_VAR_EPG_7d.hql
+-- Created on:    13/11/2015
+-- Authors:       Venkateswarlu, U.
+-- Purpose:       Process to calculate the VAR Epg 7d KPIs
+-------------------------------------------------------------------------------
 
--- creation of staging table for var_epg_master
-CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_master (
-    content_id 		STRING,
-	program_title 	STRING,
-	channel         STRING,
-	duration_min 	DOUBLE
+-- creating a temporary table to store the 1^ subset of EPG's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp01 (     
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  logged_viewers_7d INT,
+  anonymous_viewers_7d INT,
+  logged_views_7d INT,
+  anonymous_views_7d INT,
+  playback_duration_min_per_logged_viewer_7d INT,
+  playback_duration_min_per_anonymous_viewer_7d INT,
+  playback_duration_min_per_logged_view_7d INT,
+  playback_duration_min_per_anonymous_view_7d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE  
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp01';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d_tmp01
+-- LOGGED_VIEWERS_7d
+-- ANONYMOUS_VIEWERS_7d
+-- LOGGED_VIEWS_7d
+-- ANONYMOUS_VIEWS_7d
+-- PLAYBACK_DURATION_MIN_PER_LOGGED_VIEWER_7d
+-- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEWER_7d
+-- PLAYBACK_DURATION_MIN_PER_LOGGED_VIEW_7d
+-- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEW_7d
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_epg_7d_tmp01
+SELECT 
+  vem.content_id,
+  vem.program_title,
+  vem.channel,
+  vem.duration_min,
+  b.logged_viewers_7d,
+  b.anonymous_viewers_7d,
+  b.logged_views_7d,
+  b.anonymous_views_7d,
+  b.playback_duration_min_per_logged_viewer_7d,
+  b.playback_duration_min_per_anonymous_viewer_7d,
+  b.playback_duration_min_per_logged_view_7d,
+  b.playback_duration_min_per_anonymous_view_7d
+FROM var_epg_master vem 
+LEFT OUTER JOIN (
+  SELECT
+    t4.content_id                                                       AS CONTENTID,
+    count(distinct LOGGED_VIEWERS_7d)                                   AS LOGGED_VIEWERS_7d,
+    count(distinct ANONYMOUS_VIEWERS_7d)                                AS ANONYMOUS_VIEWERS_7d,
+    sum(LOGGED_VIEWS_7d)                                                AS LOGGED_VIEWS_7d,
+    sum(ANONYMOUS_VIEWS_7d)                                             AS ANONYMOUS_VIEWS_7d, 
+    sum(t2.CONSUMPTION_LOGGED) / count(distinct LOGGED_VIEWERS_7d)      AS PLAYBACK_DURATION_MIN_PER_LOGGED_VIEWER_7d,
+    sum(t2.CONSUMPTION_ANONYMUS) / count(distinct ANONYMOUS_VIEWERS_7d) AS PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEWER_7d,
+    sum(t2.CONSUMPTION_LOGGED) / sum(LOGGED_VIEWS_7d)                   AS PLAYBACK_DURATION_MIN_PER_LOGGED_VIEW_7d,
+    sum(t2.CONSUMPTION_ANONYMUS) / sum(ANONYMOUS_VIEWS_7d)              AS PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEW_7d
+  FROM var_epg_master t4
+  LEFT OUTER JOIN (
+    SELECT
+      t3.livecontentid                                                 AS CONTENTID,
+      t0.userid                                                        AS USERID,
+      t0.deviceid                                                      AS DEVICEID,
+      (if(t0.userid != t0.deviceid, round(t0.consumption /60), null))  AS CONSUMPTION_LOGGED,
+      (if(t0.userid = t0.deviceid, round( t0.consumption /60), null))  AS CONSUMPTION_ANONYMUS,
+      (if(t0.userid != t0.deviceid, t0.userid, null))                  AS LOGGED_VIEWERS_7d,
+      (if(t0.userid = t0.deviceid, t0.deviceid, null))                 AS ANONYMOUS_VIEWERS_7d,
+      (if(t0.userid != t0.deviceid,1, 0))                              AS LOGGED_VIEWS_7d,
+      (if(t0.userid = t0.deviceid, 1, 0))                              AS ANONYMOUS_VIEWS_7d
+    FROM target_watching t0 
+    JOIN target_epg_catalog t3 ON ( t0.contentid = t3.livecontentid) 
+    WHERE t0.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t0.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')   
+     AND t0.download != "Y"
+    ) t2 ON ( t4.content_id = t2.contentid ) 
+ GROUP BY 
+   t4.content_id
+) b ON ( vem.content_id = b.livecontentid );
+
+-- creating a temporary table to store the 2^ subset of VAR EPG's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp02 (
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  logged_viewers_7d INT,
+  views_subsequent_details_7d DOUBLE
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_master';
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp02';
 
--- Process to load the dimensions in order to simplify calculation of KPI
-INSERT INTO TABLE var_epg_master
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d_tmp02
+-- VIEWS_SUBSEQUENT_DETAILS_7d
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_epg_7d_tmp02
 SELECT 
-       t1.livecontentid                      AS content_id,
-	   t1.title                              AS program_title,
-	   t1.channel_name                       AS channel,
-	   ( IF(1 == 2, 1, NULL) )               AS duration_min
-	   FROM   target_epg_catalog t1;
+  vem.content_id,
+  vem.program_title,
+  vem.channel,
+  vem.duration_min,
+  b.views_subsequent_details_7d
+FROM var_epg_master vem 
+LEFT OUTER JOIN (
+  SELECT 
+    t2.content_id         AS contentid, 
+    nvl(sum(t3.loads), 0) AS views_subsequent_details_7d
+  FROM var_epg_master t2
+  LEFT OUTER JOIN (
+          SELECT 
+            temp1.contentid,
+            IF(temp1.timestamp < temp2.timestamp, 1, 0) AS loads    
+          FROM (
+               SELECT t1.sessionid, t1.userid, t1.deviceid, t1.contentid, t1.timestamp
+                 FROM target_user_action t1
+                WHERE t1.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t1.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+                  AND t1.eventtype = "LOADCONTENTDETAILSPAGE"
+               ) temp1 
+          JOIN ( 
+               SELECT t2.sessionid, t2.userid, t2.deviceid, t2.contentid, t2.timestamp
+                 FROM target_user_action t2
+                WHERE t2.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t2.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+                  AND t2.eventtype = "VIDEOSTART"
+               )temp2 
+            ON temp1.userid=temp2.userid
+           AND temp1.sessionid=temp2.sessionid
+           AND temp1.deviceid=temp2.deviceid
+           AND temp1.contentid=temp2.contentid          
+    ) t3 ON ( t2.content_id = t3.contentid ) 
+ GROUP BY t2.content_id
+) b ON ( vem.content_id = b.contentid );
+
+-- creating a temporary table to store the 3^ subset of VAR EPG's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp03 (
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  purchases_7d INT,
+  revenues_7d DOUBLE
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp03';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d_tmp03
+-- PURCHASES_7d
+-- REVENUES_7d
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_epg_7d_tmp03
+SELECT 
+  vem.content_id,
+  vem.program_title,
+  vem.channel,
+  vem.duration_min,
+  b.purchases_7d,
+  b.revenues_7d
+FROM var_epg_master vem 
+LEFT OUTER JOIN (
+  SELECT 
+    t2.content_id                 AS contentid,
+    count(t3.userid)              AS purchases_7d,
+    nvl(sum(t3.originalprice), 0) AS revenues_7d
+  FROM var_epg_master t2
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.contentid     AS contentid,
+      t0.originalprice AS originalprice,
+      t0.userid        AS userid
+    FROM target_purchase t0 
+    JOIN target_epg_catalog t1 ON (t0.contentid = t1.livecontentid)
+   WHERE t0.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t0.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+    ) t3 ON ( t2.content_id = t3.contentid ) 
+ GROUP BY 
+   t2.content_id
+) b ON ( vem.content_id = b.contentid );
+
+-- creating a temporary table to store the 4^ subset of VAR Epg's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp04 (
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  downloads_7d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp04';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d_tmp04
+-- DOWNLOADS_7d
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_epg_7d_tmp04
+SELECT 
+  vem.content_id,
+  vem.program_title,
+  vem.channel,
+  vem.duration_min,
+  b.downloads_7d
+FROM var_epg_master vem 
+LEFT OUTER JOIN (
+  SELECT 
+    t2.content_id    AS content_id,
+    sum(t3.download) AS downloads_7d
+  FROM var_epg_master t2
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.contentid                 AS contentid,
+      IF (t0.download = "Y", 1, 0) AS download
+    FROM target_watching t0 
+    LEFT OUTER JOIN target_epg_catalog t1 ON (t0.contentid = t1.livecontentid)
+   WHERE t0.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t0.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+    ) t3 ON ( t2.content_id = t3.contentid ) 
+ GROUP BY 
+   t2.content_id
+) b ON ( vem.content_id = b.content_id );
+
+-- creating a temporary table to store the 5^ subset of VAR Epg's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp05 (
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  playlists_7d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp05';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d_tmp05
+-- PLAYLISTS_7d
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_epg_7d_tmp05
+SELECT 
+  vem.content_id,
+  vem.program_title,
+  vem.channel,
+  vem.duration_min,
+  b.playlist_7d
+FROM var_epg_master vem 
+LEFT OUTER JOIN (
+  SELECT 
+    t2.content_id    AS contentid, 
+    count(t3.userid) AS playlist_7d
+  FROM var_epg_master t2
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.contentid AS contentid,
+      t0.user_id   AS userid
+    FROM target_favourite t0 
+    JOIN target_epg_catalog t1 ON (t0.contentid = t1.livecontentid)
+   WHERE t0.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t0.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+    ) t3 ON ( t2.content_id = t3.contentid ) 
+ GROUP BY 
+   t2.content_id
+) b ON ( vem.content_id = b.contentid );
+
+-- creating a temporary table to store the 6^ subset of VAR Epg's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp06 (
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  impressions_7d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp06';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d_tmp06
+-- IMPRESSIONS_7d
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_epg_7d_tmp06
+SELECT 
+  vem.content_id,
+  vem.program_title,
+  vem.channel,
+  vem.duration_min,
+  b.impressions_7d
+FROM var_epg_master vem 
+LEFT OUTER JOIN (
+  SELECT 
+    t2.content_id    AS contentid, 
+    count(t3.userid) AS impressions_7d
+  FROM var_epg_master t2
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.content_id AS contentid,
+      t0.user_id    AS userid
+    FROM target_impression t0 
+    JOIN target_epg_catalog t1 ON (t0.content_id = t1.livecontentid)
+   WHERE t0.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t0.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+    ) t3 ON ( t2.content_id = t3.contentid ) 
+ GROUP BY 
+   t2.content_id
+) b ON ( vem.content_id = b.contentid );
+
+-- creating a temporary table to store the 7^ subset of VAR epg's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d_tmp07 (
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  likes_7d INT,
+  dislikes_7d INT,
+  ratings_7d INT,
+  avg_rating_value_7d DOUBLE
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d_tmp07';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d_tmp07
+-- LIKES_7d
+-- DISLIKES_7d
+-- RATINGS_7d
+-- AVG_RATING_VALUE_7d
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_epg_7d_tmp07
+SELECT 
+  vem.content_id,
+  vem.program_title,
+  vem.channel,
+  vem.duration_min,
+  b.likes_7d,
+  b.dislikes_7d,
+  b.ratings_7d,
+  b.avg_rating_value_7d
+FROM var_epg_master vem 
+LEFT OUTER JOIN (
+  SELECT 
+    t2.content_id, 
+    nvl(sum(t3.is_liked), 0)                         AS likes_7d,
+    nvl(sum(t3.is_disliked), 0)                      AS dislikes_7d,
+    nvl(sum(t3.rating), 0)                           AS ratings_7d,
+    round(sum(t3.avg_rating)/count(t2.content_id),2) AS avg_rating_value_7d
+  FROM var_epg_master t2
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.content_id                                 AS contentid,
+      IF (t0.is_liked = "Y", 1, 0)                  AS is_liked,
+      IF (t0.is_disliked = "Y", 1,0)                AS is_disliked,
+      IF (t0.rating in ("1","2","3","4","5"), 0, 1) AS rating,
+      t0.rating                                     AS avg_rating
+    FROM target_curation t0 
+    LEFT OUTER JOIN target_epg_catalog t1 ON (t0.content_id = t1.livecontentid)
+   WHERE t0.dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 7) 
+                    AND t0.dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+    ) t3 ON ( t2.content_id = t3.contentid ) 
+ GROUP BY 
+   t2.content_id
+) b ON ( vem.content_id = b.content_id );
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_epg_7d
+-- JOIN ALL TEMPORARY TABLES
+-------------------------------------------------------------------------------
+
+CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_7d (
+  content_id STRING,
+  program_title STRING,
+  channel STRING,
+  duration_min DOUBLE,
+  logged_viewers_7d INT,
+  anonymous_viewers_7d INT,
+  logged_views_7d INT,
+  anonymous_views_7d INT,
+  playback_duration_min_per_logged_viewer_7d DOUBLE,
+  playback_duration_min_per_anonymous_viewer_7d DOUBLE,
+  playback_duration_min_per_logged_view_7d DOUBLE,
+  playback_duration_min_per_anonymous_view_7d DOUBLE,
+  views_subsequent_details_7d INT,
+  purchases_7d INT,
+  revenues_7d double,
+  downloads_7d INT,
+  playlists_7d INT,
+  impressions_7d INT,
+  likes_7d INT,
+  dislikes_7d INT,
+  ratings_7d INT,
+  avg_rating_value_7d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_EPG/var_epg_7d';
+
+INSERT OVERWRITE TABLE var_epg_7d
+SELECT t1.*, 
+       t2.views_subsequent_details_7d, 
+       t3.purchases_7d,
+       t3.revenues_7d,
+       t4.downloads_7d,
+       t5.playlists_7d,
+       t6.impressions_7d,
+       t7.likes_7d,
+       t7.dislikes_7d,
+       t7.ratings_7d,
+       t7.avg_rating_value_7d
+FROM var_epg_7d_tmp01 t1
+JOIN var_epg_7d_tmp02 t2 ON t1.content_id = t2.content_id
+JOIN var_epg_7d_tmp03 t3 ON t1.content_id = t3.content_id
+JOIN var_epg_7d_tmp04 t4 ON t1.content_id = t4.content_id
+JOIN var_epg_7d_tmp05 t5 ON t1.content_id = t5.content_id
+JOIN var_epg_7d_tmp06 t6 ON t1.content_id = t6.content_id
+JOIN var_epg_7d_tmp07 t7 ON t1.content_id = t7.content_id;
