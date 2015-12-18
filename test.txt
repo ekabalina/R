@@ -1,191 +1,614 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_VAR_EPG.hql
--- Created on:    13/11/2015
--- Authors:       Venkateswarlu, U.
--- Purpose:       Process to calculate the VAR Epg KPIs
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_VAR_Anonymous_30D.hql
+-- Created on:    10/11/2015
+-- Authors:       Stefanelli, Adriano - Fumagalli, Luca - Melchiorre, Pierpaolo
+-- Purpose:       Process to calculate the VAR Anonymous 30D KPIs
+-------------------------------------------------------------------------------
 
--- creating table to store the VAR Epg's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_epg_content (
-  content_id STRING,
-  program_title STRING,
-  channel STRING,
-  duration_min DOUBLE,
-  logged_viewers_1d INT,
-  anonymous_viewers_1d INT,
-  logged_views_1d INT,
-  anonymous_views_1d INT,
-  playback_duration_min_per_logged_viewer_1d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_1d DOUBLE,
-  playback_duration_min_per_logged_view_1d DOUBLE,
-  playback_duration_min_per_anonymous_view_1d DOUBLE,
-  views_subsequent_details_1d INT,
-  purchases_1d INT,
-  revenues_1d double,
-  downloads_1d INT,
-  playlists_1d INT,
-  impressions_1d INT,
-  likes_1d INT,
-  dislikes_1d INT,
-  ratings_1d INT,
-  avg_rating_value_1d INT,
-  logged_viewers_7d INT,
-  anonymous_viewers_7d INT,
-  logged_views_7d INT,
-  anonymous_views_7d INT,
-  playback_duration_min_per_logged_viewer_7d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_7d DOUBLE,
-  playback_duration_min_per_logged_view_7d DOUBLE,
-  playback_duration_min_per_anonymous_view_7d DOUBLE,
-  views_subsequent_details_7d INT,
-  purchases_7d INT,
-  revenues_7d double,
-  downloads_7d INT,
-  playlists_7d INT,
-  impressions_7d INT,
-  likes_7d INT,
-  dislikes_7d INT,
-  ratings_7d INT,
-  avg_rating_value_7d INT,
-  logged_viewers_30d INT,
-  anonymous_viewers_30d INT,
-  logged_views_30d INT,
-  anonymous_views_30d INT,
-  playback_duration_min_per_logged_viewer_30d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_30d DOUBLE,
-  playback_duration_min_per_logged_view_30d DOUBLE,
-  playback_duration_min_per_anonymous_view_30d DOUBLE,
-  views_subsequent_details_30d INT,
-  purchases_30d INT,
-  revenues_30d double,
-  downloads_30d INT,
-  playlists_30d INT,
-  impressions_30d INT,
-  likes_30d INT,
-  dislikes_30d INT,
-  ratings_30d INT,
-  avg_rating_value_30d INT,
-  logged_viewers_60d INT,
-  anonymous_viewers_60d INT,
-  logged_views_60d INT,
-  anonymous_views_60d INT,
-  playback_duration_min_per_logged_viewer_60d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_60d DOUBLE,
-  playback_duration_min_per_logged_view_60d DOUBLE,
-  playback_duration_min_per_anonymous_view_60d DOUBLE,
-  views_subsequent_details_60d INT,
-  purchases_60d INT,
-  revenues_60d double,
-  downloads_60d INT,
-  playlists_60d INT,
-  impressions_60d INT,
-  likes_60d INT,
-  dislikes_60d INT,
-  ratings_60d INT,
-  avg_rating_value_60d INT,
-  logged_viewers_90d INT,
-  anonymous_viewers_90d INT,
-  logged_views_90d INT,
-  anonymous_views_90d INT,
-  playback_duration_min_per_logged_viewer_90d DOUBLE,
-  playback_duration_min_per_anonymous_viewer_90d DOUBLE,
-  playback_duration_min_per_logged_view_90d DOUBLE,
-  playback_duration_min_per_anonymous_view_90d DOUBLE,
-  views_subsequent_details_90d INT,
-  purchases_90d INT,
-  revenues_90d double,
-  downloads_90d INT,
-  playlists_90d INT,
-  impressions_90d INT,
-  likes_90d INT,
-  dislikes_90d INT,
-  ratings_90d INT,
-  avg_rating_value_90d INT
+-- creating a temporary table to store the 1^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp01 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  accesses_30d INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_EPG/output';
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp01';
 
--- inserting data into var_epg_content table
-INSERT OVERWRITE TABLE var_epg_content
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp01
+-- ACCESSES_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp01
+SELECT 
+  vam.date, 
+  vam.device_id, 
+  vam.app_version, 
+  vam.platform, 
+  vam.first_session_date, 
+  vam.first_content_view_date, 
+  b.accesses_30d 
+FROM var_anonymous_master vam 
+LEFT OUTER JOIN (
+  SELECT 
+    t1.device_id, 
+    count(t2.deviceid) AS ACCESSES_30D 
+  FROM var_anonymous_master t1
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.deviceid 
+    FROM target_user_action t0 
+   WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+               AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+     AND t0.eventtype = "APPLICATIONSTARTUP"
+    ) t2 ON ( t1.device_id = t2.deviceid ) 
+ GROUP BY 
+   t1.device_id
+) b ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 2^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp02 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  video_views_30d INT,
+  video_playback_duration_30d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp02';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp02
+-- VIDEO_VIEWS_30D
+-- VIDEO_PLAYBACK_DURATION_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp02
+SELECT 
+  vam.date, 
+  vam.device_id, 
+  vam.app_version, 
+  vam.platform, 
+  vam.first_session_date, 
+  vam.first_content_view_date, 
+  b.video_views_30d,
+  b.video_playback_duration_30d
+FROM var_anonymous_master vam 
+LEFT OUTER JOIN (
+  SELECT 
+    t1.device_id, 
+    count(t2.deviceid)            AS VIDEO_VIEWS_30D,
+    round(sum(t2.consumption)/60) AS VIDEO_PLAYBACK_DURATION_30D
+  FROM var_anonymous_master t1 
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.deviceid,
+      t0.consumption
+    FROM target_watching t0 
+    JOIN target_category_map t3 ON ( t0.contentid = t3.contentid ) 
+   WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+               AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+     AND t0.download != "Y"
+    ) t2 ON ( t1.device_id = t2.deviceid ) 
+GROUP BY
+  t1.device_id
+) b ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 3^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp03 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  live_views_30d INT,
+  live_playback_duration_30d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp03';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp03
+-- LIVE_VIEWS_30D
+-- LIVE_PLAYBACK_DURATION_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp03
+SELECT 
+  vam.date, 
+  vam.device_id, 
+  vam.app_version, 
+  vam.platform, 
+  vam.first_session_date, 
+  vam.first_content_view_date, 
+  b.live_views_30d,
+  b.live_playback_duration_30d
+FROM var_anonymous_master vam 
+LEFT OUTER JOIN (
+  SELECT 
+    t1.device_id, 
+    count(t2.deviceid)            AS LIVE_VIEWS_30D,
+    round(sum(t2.consumption)/60) AS LIVE_PLAYBACK_DURATION_30D
+  FROM var_anonymous_master t1 
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.deviceid,
+      t0.consumption
+    FROM target_watching t0 
+    JOIN target_epg_catalog t3 ON ( t0.contentid = t3.livecontentid ) 
+   WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+               AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+     AND t0.download != "Y"
+    ) t2 ON ( t1.device_id = t2.deviceid ) 
+GROUP BY
+  t1.device_id
+) b ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 4^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp04 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  views_30d INT,
+  playback_duration_30d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp04';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp04
+-- VIEWS_30D
+-- PLAYBACK_DURATION_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp04
+SELECT 
+  vam.date, 
+  vam.device_id, 
+  vam.app_version, 
+  vam.platform, 
+  vam.first_session_date, 
+  vam.first_content_view_date, 
+  b.views_30d,
+  b.playback_duration_30d
+FROM var_anonymous_master vam 
+LEFT OUTER JOIN (
+  SELECT 
+    t1.device_id, 
+    count(t2.deviceid)            AS VIEWS_30D,
+    round(sum(t2.consumption)/60) AS PLAYBACK_DURATION_30D
+  FROM var_anonymous_master t1 
+  LEFT OUTER JOIN (
+    SELECT 
+      t0.deviceid,
+      t0.consumption
+    FROM target_watching t0 
+   WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+               AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+     AND t0.download != "Y"
+    ) t2 ON ( t1.device_id = t2.deviceid ) 
+GROUP BY
+  t1.device_id
+) b ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 5^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp05 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  top_watched_category_30d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp05';
+
+-- creating structure to store the count watching contents for every anonymous deviceid
+CREATE TABLE IF NOT EXISTS tmp_max_vod_30D (
+  deviceid STRING,
+  contentid STRING,
+  num INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/tmp_max_vod_30D';
+
+-- populating tmp_max_vod_30D table
+INSERT OVERWRITE TABLE tmp_max_vod_30D
+SELECT 
+  t0.deviceid as deviceid,
+  t0.contentid as contentid,
+  count(t0.deviceid) as num
+ FROM target_watching t0
+WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+  AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+  AND t0.download = 'Y'    
+  AND (t0.userid = t0.deviceid) 
+GROUP BY t0.deviceid, t0.contentid;
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp05
+-- TOP_WATCHED_CATEGORY_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp05
 SELECT
-  t1.*, 
-  t2.logged_viewers_7d,
-  t2.anonymous_viewers_7d,
-  t2.logged_views_7d,
-  t2.anonymous_views_7d,
-  t2.playback_duration_min_per_logged_viewer_7d,
-  t2.playback_duration_min_per_anonymous_viewer_7d,
-  t2.playback_duration_min_per_logged_view_7d,
-  t2.playback_duration_min_per_anonymous_view_7d,
-  t2.views_subsequent_details_7d,
-  t2.purchases_7d,
-  t2.revenues_7d,
-  t2.downloads_7d,
-  t2.playlists_7d,
-  t2.impressions_7d,
-  t2.likes_7d,
-  t2.dislikes_7d,
-  t2.ratings_7d,
-  t2.avg_rating_value_7d,
-  t3.logged_viewers_30d,
-  t3.anonymous_viewers_30d,
-  t3.logged_views_30d,
-  t3.anonymous_views_30d,
-  t3.playback_duration_min_per_logged_viewer_30d,
-  t3.playback_duration_min_per_anonymous_viewer_30d,
-  t3.playback_duration_min_per_logged_view_30d,
-  t3.playback_duration_min_per_anonymous_view_30d,
-  t3.views_subsequent_details_30d,
-  t3.purchases_30d,
-  t3.revenues_30d,
-  t3.downloads_30d,
-  t3.playlists_30d,
-  t3.impressions_30d,
-  t3.likes_30d,
-  t3.dislikes_30d,
-  t3.ratings_30d,
-  t3.avg_rating_value_30d,
-  t4.logged_viewers_60d,
-  t4.anonymous_viewers_60d,
-  t4.logged_views_60d,
-  t4.anonymous_views_60d,
-  t4.playback_duration_min_per_logged_viewer_60d,
-  t4.playback_duration_min_per_anonymous_viewer_60d,
-  t4.playback_duration_min_per_logged_view_60d,
-  t4.playback_duration_min_per_anonymous_view_60d,
-  t4.views_subsequent_details_60d,
-  t4.purchases_60d,
-  t4.revenues_60d,
-  t4.downloads_60d,
-  t4.playlists_60d,
-  t4.impressions_60d,
-  t4.likes_60d,
-  t4.dislikes_60d,
-  t4.ratings_60d,
-  t4.avg_rating_value_60d,
-  t5.logged_viewers_90d,
-  t5.anonymous_viewers_90d,
-  t5.logged_views_90d,
-  t5.anonymous_views_90d,
-  t5.playback_duration_min_per_logged_viewer_90d,
-  t5.playback_duration_min_per_anonymous_viewer_90d,
-  t5.playback_duration_min_per_logged_view_90d,
-  t5.playback_duration_min_per_anonymous_view_90d,
-  t5.views_subsequent_details_90d,
-  t5.purchases_90d,
-  t5.revenues_90d,
-  t5.downloads_90d,
-  t5.playlists_90d,
-  t5.impressions_90d,
-  t5.likes_90d,
-  t5.dislikes_90d,
-  t5.ratings_90d,
-  t5.avg_rating_value_90d
-FROM var_epg_1D t1
-JOIN var_epg_7D t2 ON t1.content_id = t2.content_id
-JOIN var_epg_30D t3 ON t1.content_id = t3.content_id
-JOIN var_epg_60D t4 ON t1.content_id = t4.content_id
-JOIN var_epg_90D t5 ON t1.content_id = t5.content_id;
+    vam.DATE,
+    vam.DEVICE_ID,
+    vam.APP_VERSION,
+    vam.PLATFORM,
+    vam.FIRST_SESSION_DATE,
+    vam.FIRST_CONTENT_VIEW_DATE,
+    b.TOP_WATCHED_CATEGORY_30D
+FROM var_anonymous_master vam
+LEFT OUTER JOIN ( 
+      SELECT 
+           t1.device_id as device_id,
+           TOP_WATCHED_CATEGORY_30D as TOP_WATCHED_CATEGORY_30D
+      FROM var_anonymous_master t1 
+      LEFT OUTER JOIN (
+                select 
+                 t3.deviceid as device_id, 
+                 t4.categoryname as TOP_WATCHED_CATEGORY_30D
+                from(
+                 select S.* 
+                 from (
+                    select deviceid,contentid,num,rank() over (partition by deviceid order by num desc,contentid) as r
+                     from tmp_max_vod_30D) S
+                    where S.r=1
+                ) t3
+                join target_category_map t4 on t3.contentid = t4.contentid
+          ) t2
+      ON ( t1.device_id = t2.device_id )
+)b
+ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 6^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp06 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  top_watched_channel_30d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp06';
+
+-- creating structure to store the count watching contents for every anonymous deviceid
+CREATE TABLE IF NOT EXISTS tmp_max_epg_30D (
+  deviceid STRING,
+  contentid STRING,
+  num INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/tmp_max_epg_30D';
+
+-- populating tmp_max_epg_30D table
+INSERT OVERWRITE TABLE tmp_max_epg_30D
+SELECT 
+  t0.deviceid as deviceid,
+  t0.contentid as contentid,
+  count(t0.deviceid) as num
+ FROM target_watching t0
+WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+  AND t0.download = 'Y'    
+  AND (t0.userid = t0.deviceid) 
+GROUP BY t0.deviceid, t0.contentid;
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp06
+-- TOP_WATCHED_CHANNEL_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp06
+SELECT
+    vam.DATE,
+    vam.DEVICE_ID,
+    vam.APP_VERSION,
+    vam.PLATFORM,
+    vam.FIRST_SESSION_DATE,
+    vam.FIRST_CONTENT_VIEW_DATE,
+    b.TOP_WATCHED_CHANNEL_30D
+FROM var_anonymous_master vam
+LEFT OUTER JOIN ( 
+      SELECT 
+           t1.device_id as device_id,
+           TOP_WATCHED_CHANNEL_30D as TOP_WATCHED_CHANNEL_30D
+      FROM var_anonymous_master t1 
+      LEFT OUTER JOIN (
+                select 
+                 t3.deviceid as device_id, 
+                 t4.channel_name as TOP_WATCHED_CHANNEL_30D
+                from(
+                 select S.* 
+                 from (
+                    select deviceid,contentid,num,rank() over (partition by deviceid order by num desc,contentid) as r
+                     from tmp_max_epg_30D) S
+                    where S.r=1
+                ) t3
+                join target_epg_catalog t4 on t3.contentid = t4.livecontentid
+          ) t2
+      ON ( t1.device_id = t2.device_id )
+)b
+ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 7^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp07 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  impressions_30d INT,
+  viewed_adv_30d INT,
+  clicks_through_30d INT,
+  skipped_adv_30d INT 
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp07';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp07
+-- IMPRESSIONS_30D
+-- VIEWED_ADV_30D
+-- CLICKS_THROUGH_30D
+-- SKIPPED_ADV_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp07
+SELECT
+    vam.DATE,
+    vam.DEVICE_ID,
+    vam.APP_VERSION,
+    vam.PLATFORM,
+    vam.FIRST_SESSION_DATE,
+    vam.FIRST_CONTENT_VIEW_DATE,
+    b.IMPRESSIONS_30D,
+    b.VIEWED_ADV_30D,
+    b.CLICKS_THROUGH_30D,
+    b.SKIPPED_ADV_30D
+FROM var_anonymous_master vam
+LEFT OUTER JOIN ( 
+      SELECT 
+           t1.device_id as device_id,
+           count(t2.deviceid) as IMPRESSIONS_30D,
+           count(t2.VADV) as VIEWED_ADV_30D,
+           count(t2.clicked) as CLICKS_THROUGH_30D,
+           count(t2.skipped) as SKIPPED_ADV_30D
+      FROM var_anonymous_master t1 
+      LEFT OUTER JOIN (
+           SELECT 
+              t0.device_id as deviceid,
+              if(t0.completion_percentage = 100, t0.device_id, null) as VADV,
+              if(t0.has_been_clicked = 'Y', t0.device_id, null) as clicked,
+              if(t0.has_been_skipped = 'Y', t0.device_id, null) as skipped
+           FROM target_impression t0
+           WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+             AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')  
+                 AND (t0.user_id = null OR t0.user_id="") -- in target impression anonymous users has userid null (IFA)
+           ) t2
+       ON ( t1.device_id = t2.deviceid )
+    GROUP BY t1.device_id
+)b
+ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 8^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp08 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  searches_30d INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp08';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp08
+-- SEARCHES_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp08
+SELECT
+    vam.DATE,
+    vam.DEVICE_ID,
+    vam.APP_VERSION,
+    vam.PLATFORM,
+    vam.FIRST_SESSION_DATE,
+    vam.FIRST_CONTENT_VIEW_DATE,
+    b.SEARCHES_30D
+FROM var_anonymous_master vam
+LEFT OUTER JOIN ( 
+      SELECT 
+           t1.device_id as device_id,
+           count(t2.deviceid) as SEARCHES_30D
+      FROM var_anonymous_master t1 
+      LEFT OUTER JOIN (
+           SELECT 
+              t0.device_id as deviceid
+           FROM target_search t0
+           WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+               AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')    
+                 AND (t0.user_id = null OR t0.user_id="") -- in target search anonymous users has userid null (IFA)
+           ) t2
+       ON ( t1.device_id = t2.deviceid )
+    GROUP BY t1.device_id
+)b
+ON ( vam.device_id = b.device_id );
+
+-- creating a temporary table to store the 9^ subset of VAR Anonymous's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp09 (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  launched_apps_30d INT,
+  video_drop_off_30d INT,
+  average_video_drop_off_30d DOUBLE
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp09';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D_tmp09
+-- LAUNCHED_APPS_30D
+-- VIDEO_DROP_OFF_30D
+-- AVERAGE_VIDEO_DROP_OFF_30D
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE var_anonymous_30D_tmp09
+SELECT
+    vam.DATE,
+    vam.DEVICE_ID,
+    vam.APP_VERSION,
+    vam.PLATFORM,
+    vam.FIRST_SESSION_DATE,
+    vam.FIRST_CONTENT_VIEW_DATE,
+    b.LAUNCHED_APPS_30D,
+    b.VIDEO_DROP_OFF_30D,
+    b.AVERAGE_VIDEO_DROP_OFF_30D
+FROM var_anonymous_master vam
+LEFT OUTER JOIN (
+    SELECT 
+        c.device_id as device_id,
+        app as LAUNCHED_APPS_30D,
+        numerator as VIDEO_DROP_OFF_30D,
+        numerator/denominator as AVERAGE_VIDEO_DROP_OFF_30D 
+    FROM(   
+      SELECT t1.device_id as device_id,
+           count(t2.den) as numerator,
+           count(t2.sessionid) AS denominator,
+           count(t2.app) AS app
+      FROM var_anonymous_master t1 
+      LEFT OUTER JOIN (
+           SELECT 
+              t0.deviceid as deviceid,
+              t0.sessionid as sessionid,
+              if(t0.eventtype = "APPLICATIONSTARTUP", t0.sessionid, null) as app,
+              if(t0.eventtype = "VIDEOEND" AND t0.terminationreason = "ERROR", t0.sessionid, null) as den
+           FROM target_user_action t0
+           WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30) 
+               AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
+                 AND t0.deviceid = t0.userid
+           ) t2
+       ON ( t1.device_id = t2.deviceid )
+    GROUP BY t1.device_id
+    )c
+)b
+ON ( vam.device_id = b.device_id );
+
+-------------------------------------------------------------------------------
+-- Temporary table name: var_anonymous_30D
+-- JOIN ALL TEMPORARY TABLES
+-------------------------------------------------------------------------------
+
+CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D (
+  date STRING,
+  device_id STRING,
+  app_version STRING,
+  platform STRING,
+  first_session_date STRING,
+  first_content_view_date STRING,
+  accesses_30d INT,
+  video_views_30d INT,
+  video_playback_duration_30d INT,
+  live_views_30d INT,
+  live_playback_duration_30d INT,
+  views_30d INT,
+  playback_duration_30d INT,
+  top_watched_category_30d INT,
+  top_watched_channel_30d INT,
+  impressions_30d INT,
+  viewed_adv_30d INT,
+  clicks_through_30d INT,
+  skipped_adv_30d INT,
+  searches_30d INT,
+  launched_apps_30d INT,
+  video_drop_off_30d INT,
+  average_video_drop_off_30d DOUBLE 
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D';
+
+INSERT OVERWRITE TABLE var_anonymous_30D
+SELECT t1.*, 
+       t2.video_views_30d, 
+       t2.video_playback_duration_30d,
+       t3.live_views_30d,
+       t3.live_playback_duration_30d,
+       t4.views_30d,
+       t4.playback_duration_30d,
+       t5.top_watched_category_30d,
+       t6.top_watched_channel_30d,
+       t7.impressions_30d,
+       t7.viewed_adv_30d,
+       t7.clicks_through_30d,
+       t7.skipped_adv_30d,
+       t8.searches_30d,
+       t9.launched_apps_30d,
+       t9.video_drop_off_30d,
+       t9.average_video_drop_off_30d
+FROM var_anonymous_30D_tmp01 t1
+JOIN var_anonymous_30D_tmp02 t2 ON t1.device_id = t2.device_id
+JOIN var_anonymous_30D_tmp03 t3 ON t1.device_id = t3.device_id
+JOIN var_anonymous_30D_tmp04 t4 ON t1.device_id = t4.device_id
+JOIN var_anonymous_30D_tmp05 t5 ON t1.device_id = t5.device_id
+JOIN var_anonymous_30D_tmp06 t6 ON t1.device_id = t6.device_id
+JOIN var_anonymous_30D_tmp07 t7 ON t1.device_id = t7.device_id
+JOIN var_anonymous_30D_tmp08 t8 ON t1.device_id = t8.device_id
+JOIN var_anonymous_30D_tmp09 t9 ON t1.device_id = t9.device_id;
