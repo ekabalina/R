@@ -1,23 +1,22 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Views_Monthly.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Views_Weekly.hql
 -- Created on:    29/10/2015
 -- Author:        Fumagalli, Luca
--- Purpose:       Process to calculate the Views Aggregate (Monthly) table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Views Aggregate (Weekly) table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
 
-
-drop temporary function Month_c_top;
-create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
+drop temporary function Week_c_top;
+create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
 drop temporary function GetMinutesThreshold;
 create temporary function GetMinutesThreshold as 'com.accenture.AVSA.hive.UDF.GetMinutesThreshold';
 
 -- inserting data into table agg_views
 INSERT INTO TABLE agg_views 
 SELECT 
-    "Monthly Views" as CONTEXT, 
+    "Weekly Views" as CONTEXT, 
     x1.DATE as DATE, 
     "" as TIMEBAND,
     "" as PLATFORM,
@@ -69,12 +68,12 @@ from (
                t1.sessionid as sessionid
                from target_user_action t1
                where 
-                     t1.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and  
+                     t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)) and  
                      t1.playbackstopposition is not null and
                      t1.eventtype = "VIDEOEND"
                 )x2 
             left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-            where x2.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+            where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
             )x3
         left outer join target_profiling t2
         on t2.userid = x3.userid
