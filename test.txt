@@ -1,92 +1,760 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_User_Experience_Search.hql
--- Created on:    05/11/2015
--- Authors:       Kansal, Arshi
--- Purpose:       Process to calculate the User Experience Aggregate (Search)
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Views.hql
+-- Created on:    30/10/2015
+-- Authors:       Stefanelli, Adriano; Fumagalli, Luca; Melchiorre, Pierpaolo
+-- Purpose:       Process to calculate the Views Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function GetTimeBand;
 create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
 
--- inserting data into table agg_user_experience
-INSERT INTO TABLE agg_user_experience
-SELECT context, 
-       date, 
-       timeband, 
-       geography_id, 
-       common_content_id, 
-       search_option, 
-       count(logged_searches)          AS logged_searches, 
-       sum(logged_no_results_found)    AS logged_no_results_found, 
-       count(anonymous_searches)       AS anonymous_searches, 
-       sum(anonymous_no_results_found) AS anonymous_no_results_found 
-FROM   (SELECT "Search"                         AS context, 
-               final.date                       AS date, 
-               final.timeband                   AS timeband, 
-               ""                               AS platform, 
-               final.geography_id               AS geography_id, 
-               ""                               AS app_version, 
-               final.common_content_id          AS common_content_id, 
-               final.search_option              AS search_option, 
-               final.logged_searches            AS logged_searches, 
-               final.logged_no_results_found    AS logged_no_results_found, 
-               ( IF(1 == 2, 1, NULL) )          AS likes, 
-               ( IF(1 == 2, 1, NULL) )          AS dislikes, 
-               ( IF(1 == 2, 1, NULL) )          AS likes_watched_contents,
-               ( IF(1 == 2, 1, NULL) )          AS dislikes_watched_contents,        
-               ( IF(1 == 2, 1, NULL) )          AS ratings,
-               ( IF(1 == 2, 1, NULL) )          AS average_ratings_value, 
-               ( IF(1 == 2, 1, NULL) )          AS logged_trailer_views, 
-               ( IF(1 == 2, 1, NULL) )          AS logged_conversion_trailer_movie, 
-               ( IF(1 == 2, 1, NULL) )          AS playlists, 
-               ( IF(1 == 2, 1, NULL) )          AS seasons_in_playlists, 
-               ( IF(1 == 2, 1, NULL) )          AS episodes_in_playlists, 
-               ( IF(1 == 2, 1, NULL) )          AS logged_reminders, 
-               ( IF(1 == 2, 1, NULL) )          AS anonymous_trailer_views, 
-               final.anonymous_searches         AS anonymous_searches, 
-               final.anonymous_no_results_found AS anonymous_no_results_found, 
-               ( IF(1 == 2, 1, NULL) )          AS anonymous_conversion_trailer_movie, 
-               ( IF(1 == 2, 1, NULL) )          AS anonymous_reminders 
-        FROM   (SELECT * 
-                FROM  (SELECT * 
-                       FROM  (SELECT t2.daily_day                                     AS date, 
-                                     GetTimeBand(t1.search_date)                      AS timeband, 
-                                     nvl(t4.geography_id, 0)                          AS geography_id, 
-                                     nvl(t5.common_content_id, 0)                     AS common_content_id, 
-                                     t1.search_option                                 AS search_option, 
-                                     IF(t1.user_id != t1.device_id, t1.user_id, NULL) AS logged_searches, 
-                                     IF(t1.user_id = t1.device_id, t1.user_id, NULL)  AS anonymous_searches, 
-                                     t1.user_id                                       AS field1 
-                              FROM   target_search t1 
-                                     LEFT OUTER JOIN dim_calendar t2 
-                                                  ON ( t1.dt_reference = 
-                                                       t2.day_identifier ) 
-                                     LEFT OUTER JOIN target_profiling t3 
-                                                  ON ( t1.user_id = t3.userid ) 
-                                     LEFT OUTER JOIN dim_geography t4 
-                                                  ON ( t3.regionname = t4.continent ) 
-                                                     AND ( t3.country = t4.state ) 
-                                                     AND ( t3.state = t4.region ) 
-                                     LEFT OUTER JOIN dim_common_catalog t5 
-                                                  ON ( t1.content_id = t5.detail_content_id ) 
-                              WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
-                              ) temp1 
-                             LEFT OUTER JOIN (SELECT IF(t6.no_results_found = 'Y' AND t6.user_id != t6.device_id, 1, 0) AS logged_no_results_found, 
-                                                     IF(t6.no_results_found = 'Y' AND t6.user_id = t6.device_id, 1, 0)  AS anonymous_no_results_found, 
-                                                     t6.user_id                                                         AS field2 
-                                              FROM   target_postsearch t6 
-                                              WHERE  t6.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1 ) )
-                                              ) x1 
-                                          ON ( temp1.field1 = x1.field2 )
-                        ) x2
-                    ) final
-        ) a 
-GROUP  BY context, 
-          date, 
-          timeband, 
-          geography_id, 
-          common_content_id, 
-          search_option;
+-- creating a temporary table to store the 1^ subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS view_01 (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  logged_views INT,
+  logged_views_duration_min DOUBLE,
+  logged_downloads INT,
+  anonymous_views INT,
+  anonymous_views_duration_min DOUBLE
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/view01'; 
+
+-------------------------------------------------------------------------------
+-- Temporary table name: view_01
+-- LOGGED_VIEWS
+-- LOGGED_VIEWS_DURATION_MIN
+-- LOGGED_DOWNLOADS
+-- ANONYMOUS_VIEWS
+-- ANONYMOUS_VIEWS_DURATION_MIN
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE view_01
+SELECT "Views"                                                          AS CONTEXT,
+       t2.daily_day                                                     AS DATE,
+       GetTimeBand(t1.timestamp)                                        AS TIMEBAND,
+       t1.channel                                                       AS PLATFORM,
+       nvl(t4.geography_id, 0)                                          AS GEOGRAPHY_ID,
+       t1.appversion                                                    AS APP_VERSION,
+       t5.common_content_id                                             AS COMMON_CONTENT_ID,
+       sum(if(t1.userid != t1.deviceid, 1, 0))                          AS LOGGED_VIEWS,
+       round(sum(if(t1.userid != t1.deviceid, t1.consumption, 0 ))/60)  AS LOGGED_VIEWS_DURATION_MIN,
+       sum(if(t1.userid != t1.deviceid, 1, 0))                          AS LOGGED_DOWNLOADS,
+       sum(if(t1.userid = t1.deviceid, 1, 0))                           AS ANONYMOUS_VIEWS,
+       round(sum(if(t1.userid = t1.deviceid, t1.consumption, 0 ))/60)   AS ANONYMOUS_VIEWS_DURATION_MIN
+FROM   target_watching t1
+       LEFT OUTER JOIN dim_calendar t2
+                    ON ( t1.dt_reference = t2.day_identifier )
+       LEFT OUTER JOIN target_profiling t3
+                    ON ( t1.userid = t3.userid )
+       LEFT OUTER JOIN dim_geography t4
+                    ON ( t3.regionname = t4.continent )
+                       AND ( t3.country = t4.state )
+                       AND ( t3.state = t4.region )
+       LEFT OUTER JOIN dim_common_catalog t5
+                    ON ( t1.contentid = t5.detail_content_id )
+       LEFT OUTER JOIN target_user_action t6
+                    ON ( t1.userid = t6.userid )
+WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+       AND t1.download != "Y"
+GROUP  BY "Views",
+          t2.daily_day,
+          GetTimeBand(t1.timestamp),
+          t1.channel,
+          nvl(t4.geography_id, 0),
+          t1.appversion,
+          t5.common_content_id;
+
+-- creating a temporary table to store the 2^ subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS view_02 (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  logged_detail_views INT,
+  logged_skipped_views INT,
+  anonymous_detail_views INT,
+  anonymous_skipped_views INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/view02';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: view_02
+-- LOGGED_DETAIL_VIEWS
+-- LOGGED_SKIPPED_VIEWS
+-- ANONYMOUS_DETAIL_VIEWS
+-- ANONYMOUS_SKIPPED_VIEWS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE view_02
+SELECT "Views"                                                                             AS CONTEXT,
+       t2.daily_day                                                                        AS DATE,
+       GetTimeBand(t1.timestamp)                                                           AS TIMEBAND,
+       t1.channel                                                                          AS PLATFORM,
+       nvl(t4.geography_id, 0)                                                             AS GEOGRAPHY_ID,
+       t1.appversion                                                                       AS APP_VERSION,
+       t5.common_content_id                                                                AS COMMON_CONTENT_ID,
+       sum(if(t1.userid != t1.deviceid and t1.eventtype = "LOADCONTENTDETAILSPAGE", 1, 0)) AS LOGGED_DETAIL_VIEWS,
+       sum(if(t1.userid != t1.deviceid and t1.eventtype = "VIDEOSEEK", 1, 0))              AS LOGGED_SKIPPED_VIEWS,
+       sum(if(t1.userid = t1.deviceid and t1.eventtype = "LOADCONTENTDETAILSPAGE", 1, 0))  AS ANONYMOUS_DETAIL_VIEWS,
+       sum(if(t1.userid = t1.deviceid and t1.eventtype = "VIDEOSEEK", 1, 0))               AS ANONYMOUS_SKIPPED_VIEWS
+FROM   target_user_action t1
+       LEFT OUTER JOIN dim_calendar t2
+                    ON ( t1.dt_reference = t2.day_identifier )
+       LEFT OUTER JOIN target_profiling t3
+                    ON ( t1.userid = t3.userid )
+       LEFT OUTER JOIN dim_geography t4
+                    ON ( t3.regionname = t4.continent )
+                       AND ( t3.country = t4.state )
+                       AND ( t3.state = t4.region )
+       LEFT OUTER JOIN dim_common_catalog t5
+                    ON ( t1.contentid = t5.detail_content_id )
+WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+       AND t1.eventtype in ( "LOADCONTENTDETAILSPAGE", "VIDEOSEEK" )
+GROUP  BY "Views",
+          t2.daily_day,
+          GetTimeBand(t1.timestamp),
+          t1.channel,
+          nvl(t4.geography_id, 0),
+          t1.appversion,
+          t5.common_content_id;
+
+-- creating a temporary table to store the 3^ subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS view_03 (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  anonymous_views_after_detail INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/view03';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: view_03
+-- ANONYMOUS_VIEWS_AFTER_DETAIL
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE view_03
+SELECT "Views"                              AS CONTEXT,
+       t2.daily_day                         AS DATE,
+       GetTimeBand(t1.timestamp)            AS TIMEBAND,
+       t1.channel                           AS PLATFORM,
+       nvl(t4.geography_id, 0)              AS GEOGRAPHY_ID,
+       t1.appversion                        AS APP_VERSION,
+       t5.common_content_id                 AS COMMON_CONTENT_ID,
+       sum(t0.ANONYMOUS_VIEWS_AFTER_DETAIL) AS ANONYMOUS_VIEWS_AFTER_DETAIL
+FROM   (
+       SELECT x1.USERID1,
+              ( IF(timestamp1 < timestamp2, 1, 0) ) AS ANONYMOUS_VIEWS_AFTER_DETAIL
+        FROM  (SELECT ua1.sessionid AS SESSIONID1,
+                      ua1.deviceid  AS DEVICEID1,
+                      ua1.userid    AS USERID1,
+                      ua1.timestamp AS TIMESTAMP1,
+                      ua1.contentid AS CONTENTID1
+               FROM   target_user_action ua1
+               WHERE  ua1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                      AND ua1.eventtype = "LOADCONTENTDETAILSPAGE"
+                      AND ua1.userid = ua1.deviceid) x1
+              LEFT OUTER JOIN (SELECT ua2.sessionid AS SESSIONID2,
+                                      ua2.deviceid  AS DEVICEID2,
+                                      ua2.timestamp AS TIMESTAMP2,
+                                      ua2.contentid AS CONTENTID2
+                               FROM   target_user_action ua2
+                               WHERE  ua2.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                                      AND ua2.eventtype = "VIDEOSTART"
+                                      AND ua2.userid = ua2.deviceid) x2
+                           ON x1.sessionid1 = x2.sessionid2
+                              AND x1.deviceid1 = x2.deviceid2
+                              AND x1.contentid1 = x2.contentid2) t0
+       LEFT OUTER JOIN target_watching t1
+                    ON ( t1.userid = t0.USERID1 )
+       LEFT OUTER JOIN dim_calendar t2
+                    ON ( t1.dt_reference = t2.day_identifier )
+       LEFT OUTER JOIN target_profiling t3
+                    ON ( t1.userid = t3.userid )
+       LEFT OUTER JOIN dim_geography t4
+                    ON ( t3.regionname = t4.continent )
+                       AND ( t3.country = t4.state )
+                       AND ( t3.state = t4.region )
+       LEFT OUTER JOIN dim_common_catalog t5
+                    ON ( t1.contentid = t5.detail_content_id )
+WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+GROUP  BY "Views",
+          t2.daily_day,
+          GetTimeBand(t1.timestamp),
+          t1.channel,
+          nvl(t4.geography_id, 0),
+          t1.appversion,
+          t5.common_content_id;
+
+-- creating a temporary table to store the 4^ subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS view_04 (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  logged_views_after_detail INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/view04';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: view_04
+-- LOGGED_VIEWS_AFTER_DETAIL
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE view_04
+SELECT "Views"                           AS CONTEXT,
+       t2.daily_day                      AS DATE,
+       GetTimeBand(t1.timestamp)         AS TIMEBAND,
+       t1.channel                        AS PLATFORM,
+       nvl(t4.geography_id, 0)           AS GEOGRAPHY_ID,
+       t1.appversion                     AS APP_VERSION,
+       t5.common_content_id              AS COMMON_CONTENT_ID,
+       sum(t0.LOGGED_VIEWS_AFTER_DETAIL) AS LOGGED_VIEWS_AFTER_DETAIL
+FROM   (
+       SELECT x1.USERID1,
+              ( IF(timestamp1 < timestamp2, 1, 0) ) AS LOGGED_VIEWS_AFTER_DETAIL
+        FROM  (SELECT ua1.sessionid AS SESSIONID1,
+                      ua1.deviceid  AS DEVICEID1,
+                      ua1.userid    AS USERID1,
+                      ua1.timestamp AS TIMESTAMP1,
+                      ua1.contentid AS CONTENTID1
+               FROM   target_user_action ua1
+               WHERE  ua1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                      AND ua1.eventtype = "LOADCONTENTDETAILSPAGE"
+                      AND ua1.userid != ua1.deviceid) x1
+              LEFT OUTER JOIN (SELECT ua2.sessionid AS SESSIONID2,
+                                      ua2.deviceid  AS DEVICEID2,
+                                      ua2.timestamp AS TIMESTAMP2,
+                                      ua2.contentid AS CONTENTID2
+                               FROM   target_user_action ua2
+                               WHERE  ua2.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                                      AND ua2.eventtype = "VIDEOSTART"
+                                      AND ua2.userid != ua2.deviceid) x2
+                           ON x1.sessionid1 = x2.sessionid2
+                              AND x1.deviceid1 = x2.deviceid2
+                              AND x1.contentid1 = x2.contentid2) t0
+       LEFT OUTER JOIN target_watching t1
+                    ON ( t1.userid = t0.USERID1 )
+       LEFT OUTER JOIN dim_calendar t2
+                    ON ( t1.dt_reference = t2.day_identifier )
+       LEFT OUTER JOIN target_profiling t3
+                    ON ( t1.userid = t3.userid )
+       LEFT OUTER JOIN dim_geography t4
+                    ON ( t3.regionname = t4.continent )
+                       AND ( t3.country = t4.state )
+                       AND ( t3.state = t4.region )
+       LEFT OUTER JOIN dim_common_catalog t5
+                    ON ( t1.contentid = t5.detail_content_id )
+WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+GROUP  BY "Views",
+          t2.daily_day,
+          GetTimeBand(t1.timestamp),
+          t1.channel,
+          nvl(t4.geography_id, 0),
+          t1.appversion,
+          t5.common_content_id;
+
+-- creating a temporary table to store the 5^ subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS view_05 (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  anonymous_detail_no_views INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/view05';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: view_05
+-- ANONYMOUS_DETAIL_NO_VIEWS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE view_05
+SELECT "Views"                     AS CONTEXT,
+       t2.daily_day                AS DATE,
+       GetTimeBand(t1.timestamp)   AS TIMEBAND,
+       t1.channel                  AS PLATFORM,
+       nvl(t4.geography_id, 0)     AS GEOGRAPHY_ID,
+       t1.appversion               AS APP_VERSION,
+       t5.common_content_id        AS COMMON_CONTENT_ID,
+       count(distinct(sessionid1)) AS ANONYMOUS_DETAIL_NO_VIEWS
+FROM   (SELECT * 
+        FROM   (SELECT ua1.sessionid AS SESSIONID1, 
+                       ua1.deviceid  AS DEVICEID1, 
+                       ua1.userid    AS USERID1, 
+                       ua1.timestamp AS TIMESTAMP1, 
+                       ua1.eventtype AS EVENTTYPE1, 
+                       ua1.contentid AS CONTENTID1 
+                FROM   target_user_action ua1 
+                WHERE  ua1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                       AND ua1.eventtype = "LOADCONTENTDETAILSPAGE" 
+                       AND ua1.userid = ua1.deviceid) x1 
+               LEFT OUTER JOIN (SELECT ua2.sessionid AS SESSIONID2, 
+                                       ua2.deviceid  AS DEVICEID2, 
+                                       ua2.userid    AS USERID2, 
+                                       ua2.eventtype AS EVENTTYPE2, 
+                                       ua2.contentid AS CONTENTID2 
+                                FROM   target_user_action ua2 
+                                WHERE  ua2.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                                       AND ua2.eventtype = "VIDEOSTART" 
+                                       AND ua2.userid = ua2.deviceid) x2 
+                            ON x1.sessionid1 = x2.sessionid2 
+                               AND x1.deviceid1 = x2.deviceid2 
+                               AND x1.contentid1 = x2.contentid2 
+        WHERE  x2.eventtype2 IS NULL) temp1 
+       LEFT OUTER JOIN target_watching t1 
+                    ON ( t1.userid = temp1.userid1 ) 
+       LEFT OUTER JOIN dim_calendar t2 
+                    ON ( t1.dt_reference = t2.day_identifier ) 
+       LEFT OUTER JOIN target_profiling t3 
+                    ON ( t1.userid = t3.userid ) 
+       LEFT OUTER JOIN dim_geography t4 
+                    ON ( t3.regionname = t4.continent ) 
+                       AND ( t3.country = t4.state ) 
+                       AND ( t3.state = t4.region ) 
+       LEFT OUTER JOIN dim_common_catalog t5 
+                    ON ( t1.contentid = t5.detail_content_id ) 
+WHERE  t1.dt_reference = ( Date_sub(From_unixtime(Unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+       AND t1.download != "Y" 
+GROUP  BY "Views", 
+          t2.daily_day, 
+          GetTimeBand(t1.timestamp), 
+          t1.channel, 
+          nvl(t4.geography_id, 0), 
+          t1.appversion, 
+          t5.common_content_id;
+
+-- creating a temporary table to store the 6^ subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS view_06 (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  logged_detail_no_views INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/view06';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: view_06
+-- LOGGED_DETAIL_NO_VIEWS
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE view_06
+SELECT "Views"                     AS CONTEXT,
+       t2.daily_day                AS DATE,
+       GetTimeBand(t1.timestamp)   AS TIMEBAND,
+       t1.channel                  AS PLATFORM,
+       nvl(t4.geography_id, 0)     AS GEOGRAPHY_ID,
+       t1.appversion               AS APP_VERSION,
+       t5.common_content_id        AS COMMON_CONTENT_ID,
+       count(distinct(sessionid1)) AS LOGGED_DETAIL_NO_VIEWS
+FROM   (SELECT * 
+        FROM   (SELECT ua1.sessionid AS SESSIONID1, 
+                       ua1.deviceid  AS DEVICEID1, 
+                       ua1.userid    AS USERID1, 
+                       ua1.timestamp AS TIMESTAMP1, 
+                       ua1.eventtype AS EVENTTYPE1, 
+                       ua1.contentid AS CONTENTID1 
+                FROM   target_user_action ua1 
+                WHERE  ua1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                       AND ua1.eventtype = "LOADCONTENTDETAILSPAGE" 
+                       AND ua1.userid != ua1.deviceid) x1 
+               LEFT OUTER JOIN (SELECT ua2.sessionid AS SESSIONID2, 
+                                       ua2.deviceid  AS DEVICEID2, 
+                                       ua2.userid    AS USERID2, 
+                                       ua2.eventtype AS EVENTTYPE2, 
+                                       ua2.contentid AS CONTENTID2 
+                                FROM   target_user_action ua2 
+                                WHERE  ua2.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+                                       AND ua2.eventtype = "VIDEOSTART" 
+                                       AND ua2.userid != ua2.deviceid) x2 
+                            ON x1.sessionid1 = x2.sessionid2 
+                               AND x1.deviceid1 = x2.deviceid2 
+                               AND x1.contentid1 = x2.contentid2 
+        WHERE  x2.eventtype2 IS NULL) temp1 
+       LEFT OUTER JOIN target_watching t1 
+                    ON ( t1.userid = temp1.userid1 ) 
+       LEFT OUTER JOIN dim_calendar t2 
+                    ON ( t1.dt_reference = t2.day_identifier ) 
+       LEFT OUTER JOIN target_profiling t3 
+                    ON ( t1.userid = t3.userid ) 
+       LEFT OUTER JOIN dim_geography t4 
+                    ON ( t3.regionname = t4.continent ) 
+                       AND ( t3.country = t4.state ) 
+                       AND ( t3.state = t4.region ) 
+       LEFT OUTER JOIN dim_common_catalog t5 
+                    ON ( t1.contentid = t5.detail_content_id ) 
+WHERE  t1.dt_reference = ( Date_sub(From_unixtime(Unix_timestamp(), 'yyyy-MM-dd' ), 1) )
+       AND t1.download != "Y" 
+GROUP  BY "Views", 
+          t2.daily_day, 
+          GetTimeBand(t1.timestamp), 
+          t1.channel, 
+          nvl(t4.geography_id, 0), 
+          t1.appversion, 
+          t5.common_content_id;
+
+-- creating a temporary table to store the 7^ subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS view_07 (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  max_concurrency_time_peak STRING,
+  max_logged_users_concurrency INT,
+  max_anonymous_users_concurrency INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/view07';
+
+-------------------------------------------------------------------------------
+-- Temporary table name: view_07
+-- MAX_CONCURRENCY_TIME_PEAK
+-- MAX_LOGGED_USERS_CONCURRENCY
+-- MAX_ANONYMOUS_USERS_CONCURRENCY
+-------------------------------------------------------------------------------
+
+INSERT OVERWRITE TABLE view_07
+SELECT 
+    "Views"                                 AS CONTEXT, 
+    x1.DATE                                 AS DATE, 
+    GetTimeBand(x1.timestamp)               AS TIMEBAND,
+    x1.channel                              AS PLATFORM,
+    nvl(geography_id, 0)                    AS GEOGRAPHY_ID,
+    x1.appversion                           AS APP_VERSION,
+    nvl(common_content_id, 0)               AS COMMON_CONTENT_ID,
+    x1.minute                               AS MAX_CONCURRENCY_TIME_PEAK,
+    SUM(if(x1.userid != x1.deviceid, 1, 0)) AS MAX_LOGGED_USERS_CONCURRENCY,
+    SUM(if(x1.userid = x1.deviceid, 1, 0))  AS MAX_ANONYMOUS_USERS_CONCURRENCY
+from (
+    select 
+    t4.common_content_id as common_content_id,
+    x5.*
+    from(
+        select 
+         t3.geography_id as GEOGRAPHY_ID,
+         x4.*
+        from(
+            select 
+             t2.REGIONNAME as REGIONNAME,
+             t2.COUNTRY as COUNTRY,
+             t2.STATE as STATE,
+             x3.*
+            from(
+                 select 
+                 t2.daily_day as DATE,
+                 x2.*
+                from (
+                    select 
+                           A.minute as minute, 
+                           B.channel as channel,
+                           B.deviceid as deviceid,
+                           B.userid as userid,
+                           B.appversion as appversion,
+                           B.dt_reference as dt_reference,
+                           B.timestamp as timestamp,
+                           B.contentid as contentid
+                    FROM(
+                        SELECT 
+                            concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp)) as minute,
+                            count(t1.USERID) as num
+                        FROM target_watching t1
+                        WHERE t1.DT_REFERENCE = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                        GROUP BY concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp))
+                        SORT BY num desc
+                        LIMIT 1) A
+                    LEFT JOIN target_watching B ON A.minute=concat(to_date(B.timestamp),' ',hour(B.timestamp),':',minute(B.timestamp))
+                    )x2
+                LEFT OUTER JOIN dim_calendar t2 on x2.dt_reference = t2.day_identifier
+               where x2.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                )x3
+            LEFT OUTER JOIN target_profiling t2
+            on t2.userid = x3.userid
+            )x4
+        LEFT OUTER JOIN dim_geography t3
+        on x4.REGIONNAME = t3.CONTINENT
+            AND x4.COUNTRY = t3.STATE
+            AND x4.STATE = t3.REGION
+    )x5
+    LEFT OUTER JOIN dim_common_catalog t4
+    on t4.detail_content_id = x5.contentid
+)x1
+group by x1.DATE, x1.timestamp, x1.channel, x1.geography_id, x1.appversion, x1.minute, x1.common_content_id;
+
+-- creating the final table to store the previous subset of View's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_views (
+  context STRING,
+  date DATE,
+  timeband STRING,
+  platform STRING,
+  geography_id INT,
+  app_version STRING,
+  common_content_id INT,
+  minutes_threshold STRING,
+  logged_views INT,
+  logged_views_duration_min DOUBLE,
+  logged_views_after_detail INT,
+  logged_detail_views INT,
+  logged_detail_no_views INT,
+  logged_skipped_views INT,
+  logged_users INT,
+  new_logged_users INT,
+  sessions INT,
+  max_concurrency_time_peak STRING,
+  max_logged_users_concurrency INT,
+  logged_downloads INT,
+  anonymous_views INT,
+  anonymous_views_duration_min DOUBLE,
+  anonymous_views_after_detail INT,
+  anonymous_detail_views INT,
+  anonymous_detail_no_views INT,
+  anonymous_skipped_views INT,
+  anonymous_users INT,
+  new_anonymous_users INT,
+  max_anonymous_users_concurrency INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/VIEWS/output';
+
+INSERT OVERWRITE TABLE agg_views
+SELECT 
+   nvl(temp5.context4,t6.context)                      AS context, 
+   nvl(temp5.date4, t6.date)                           AS date, 
+   nvl(temp5.timeband4, t6.timeband)                   AS timeband,
+   nvl(temp5.platform4, t6.platform)                   AS platform, 
+   nvl(temp5.geography_id4, t6.geography_id)           AS geography_id, 
+   nvl(temp5.app_version4, t6.app_version)             AS app_version, 
+   nvl(temp5.common_content_id4, t6.common_content_id) AS common_content_id,
+   ""                                                  AS Minutes_Threshold ,
+   nvl(temp5.logged_views4,0)                          AS logged_views, 
+   nvl(temp5.logged_views_duration_min4,0)             AS logged_views_duration_min, 
+   nvl(temp5.LOGGED_VIEWS_AFTER_DETAIL4,0)             AS LOGGED_VIEWS_AFTER_DETAIL,
+   nvl(temp5.logged_detail_views4,0)                   AS logged_detail_views,
+   nvl(temp5.LOGGED_DETAIL_NO_VIEWS4,0)                AS LOGGED_DETAIL_NO_VIEWS,
+   nvl(temp5.logged_skipped_views4,0)                  AS logged_skipped_views, 
+   (if(1 == 2, 1, null))                               AS logged_users,
+   (if(1 == 2, 1, null))                               AS new_logged_users,
+   (if(1 == 2, 1, null))                               AS sessions,
+   nvl(t6.MAX_CONCURRENCY_TIME_PEAK, 0)                AS MAX_CONCURRENCY_TIME_PEAK,
+   nvl(t6.MAX_LOGGED_USERS_CONCURRENCY,0)              AS MAX_LOGGED_USERS_CONCURRENCY,  
+   nvl(temp5.logged_downloads4,0)                      AS logged_downloads, 
+   nvl(temp5.anonymous_views4,0)                       AS anonymous_views, 
+   nvl(temp5.anonymous_views_duration_min4,0)          AS anonymous_views_duration_min,
+   nvl(temp5.anonymous_views_after_detail4,0)          AS anonymous_views_after_detail,   
+   nvl(temp5.anonymous_detail_views4,0)                AS anonymous_detail_views, 
+   nvl(temp5.ANONYMOUS_DETAIL_NO_VIEWS4,0)             AS ANONYMOUS_DETAIL_NO_VIEWS,
+   nvl(temp5.anonymous_skipped_views4,0)               AS anonymous_skipped_views,
+  (if(1 == 2, 1, null))                                AS anonymous_users,
+  (if(1 == 2, 1, null))                                AS new_anonymous_users,
+  nvl(t6.MAX_ANONYMOUS_USERS_CONCURRENCY,0)            AS MAX_ANONYMOUS_USERS_CONCURRENCY 
+from(
+SELECT 
+   nvl(temp4.context3, t5.context)                     AS context4, 
+   nvl(temp4.date3, t5.date)                           AS date4, 
+   nvl(temp4.timeband3, t5.timeband)                   AS timeband4,
+   nvl(temp4.platform3, t5.platform)                   AS platform4, 
+   nvl(temp4.geography_id3, t5.geography_id)           AS geography_id4, 
+   nvl(temp4.app_version3, t5.app_version)             AS app_version4, 
+   nvl(temp4.common_content_id3, t5.common_content_id) AS common_content_id4, 
+   nvl(temp4.logged_views3,0)                          AS logged_views4, 
+   nvl(temp4.logged_views_duration_min3,0)             AS logged_views_duration_min4, 
+   nvl(temp4.logged_downloads3,0)                      AS logged_downloads4, 
+   nvl(temp4.anonymous_views3,0)                       AS anonymous_views4, 
+   nvl(temp4.anonymous_views_duration_min3,0)          AS anonymous_views_duration_min4, 
+   nvl(temp4.logged_detail_views3,0)                   AS logged_detail_views4, 
+   nvl(temp4.logged_skipped_views3,0)                  AS logged_skipped_views4, 
+   nvl(temp4.anonymous_detail_views3,0)                AS anonymous_detail_views4, 
+   nvl(temp4.anonymous_skipped_views3,0)               AS anonymous_skipped_views4,
+   nvl(temp4.anonymous_views_after_detail3,0)          AS anonymous_views_after_detail4,
+   nvl(temp4.LOGGED_VIEWS_AFTER_DETAIL3,0)             AS LOGGED_VIEWS_AFTER_DETAIL4,
+   nvl(temp4.ANONYMOUS_DETAIL_NO_VIEWS3,0)             AS ANONYMOUS_DETAIL_NO_VIEWS4,
+   nvl(t5.LOGGED_DETAIL_NO_VIEWS,0)                    AS LOGGED_DETAIL_NO_VIEWS4
+from(
+SELECT 
+   nvl(temp3.context2, t4.context)                     AS context3, 
+   nvl(temp3.date2, t4.date)                           AS date3, 
+   nvl(temp3.timeband2, t4.timeband)                   AS timeband3,
+   nvl(temp3.platform2, t4.platform)                   AS platform3, 
+   nvl(temp3.geography_id2, t4.geography_id)           AS geography_id3, 
+   nvl(temp3.app_version2, t4.app_version)             AS app_version3, 
+   nvl(temp3.common_content_id2, t4.common_content_id) AS common_content_id3, 
+   nvl(temp3.logged_views2,0)                          AS logged_views3, 
+   nvl(temp3.logged_views_duration_min2,0)             AS logged_views_duration_min3, 
+   nvl(temp3.logged_downloads2,0)                      AS logged_downloads3, 
+   nvl(temp3.anonymous_views2,0)                       AS anonymous_views3, 
+   nvl(temp3.anonymous_views_duration_min2,0)          AS anonymous_views_duration_min3, 
+   nvl(temp3.logged_detail_views2,0)                   AS logged_detail_views3, 
+   nvl(temp3.logged_skipped_views2,0)                  AS logged_skipped_views3, 
+   nvl(temp3.anonymous_detail_views2,0)                AS anonymous_detail_views3, 
+   nvl(temp3.anonymous_skipped_views2,0)               AS anonymous_skipped_views3,
+   nvl(temp3.anonymous_views_after_detail2,0)          AS anonymous_views_after_detail3,
+   nvl(temp3.LOGGED_VIEWS_AFTER_DETAIL2,0)             AS LOGGED_VIEWS_AFTER_DETAIL3,
+   nvl(t4.ANONYMOUS_DETAIL_NO_VIEWS,0)                 AS ANONYMOUS_DETAIL_NO_VIEWS3
+ from(
+SELECT 
+   nvl(temp2.context1, t3.context)                     AS context2, 
+   nvl(temp2.date1, t3.date)                           AS date2, 
+   nvl(temp2.timeband1, t3.timeband)                   AS timeband2,
+   nvl(temp2.platform1, t3.platform)                   AS platform2, 
+   nvl(temp2.geography_id1, t3.geography_id)           AS geography_id2, 
+   nvl(temp2.app_version1, t3.app_version)             AS app_version2, 
+   nvl(temp2.common_content_id1, t3.common_content_id) AS common_content_id2, 
+   nvl(temp2.logged_views1,0)                          AS logged_views2, 
+   nvl(temp2.logged_views_duration_min1,0)             AS logged_views_duration_min2, 
+   nvl(temp2.logged_downloads1,0)                      AS logged_downloads2, 
+   nvl(temp2.anonymous_views1,0)                       AS anonymous_views2, 
+   nvl(temp2.anonymous_views_duration_min1,0)          AS anonymous_views_duration_min2, 
+   nvl(temp2.logged_detail_views1,0)                   AS logged_detail_views2, 
+   nvl(temp2.logged_skipped_views1,0)                  AS logged_skipped_views2, 
+   nvl(temp2.anonymous_detail_views1,0)                AS anonymous_detail_views2, 
+   nvl(temp2.anonymous_skipped_views1,0)               AS anonymous_skipped_views2,
+   nvl(temp2.anonymous_views_after_detail1,0)          AS anonymous_views_after_detail2,
+   nvl(t3.LOGGED_VIEWS_AFTER_DETAIL,0)                 AS LOGGED_VIEWS_AFTER_DETAIL2
+FROM(
+SELECT 
+   nvl(temp1.context0, t2.context)                     AS context1, 
+   nvl(temp1.date0, t2.date)                           AS date1, 
+   nvl(temp1.timeband0, t2.timeband)                   AS timeband1,
+   nvl(temp1.platform0, t2.platform)                   AS platform1, 
+   nvl(temp1.geography_id0, t2.geography_id)           AS geography_id1, 
+   nvl(temp1.app_version0, t2.app_version)             AS app_version1, 
+   nvl(temp1.common_content_id0, t2.common_content_id) AS common_content_id1, 
+   nvl(temp1.logged_views0,0)                          AS logged_views1, 
+   nvl(temp1.logged_views_duration_min0,0)             AS logged_views_duration_min1, 
+   nvl(temp1.logged_downloads0,0)                      AS logged_downloads1, 
+   nvl(temp1.anonymous_views0,0)                       AS anonymous_views1, 
+   nvl(temp1.anonymous_views_duration_min0,0)          AS anonymous_views_duration_min1, 
+   nvl(temp1.logged_detail_views0,0)                   AS logged_detail_views1, 
+   nvl(temp1.logged_skipped_views0,0)                  AS logged_skipped_views1, 
+   nvl(temp1.anonymous_detail_views0,0)                AS anonymous_detail_views1, 
+   nvl(temp1.anonymous_skipped_views0,0)               AS anonymous_skipped_views1,
+   nvl(t2.anonymous_views_after_detail,0)              AS anonymous_views_after_detail1
+FROM ( 
+        SELECT    nvl(t0.context, t1.context)                     AS context0, 
+                  nvl(t0.date, t1.date)                           AS date0, 
+                  nvl(t0.timeband, t1.timeband)                   AS timeband0,
+                  nvl(t0.platform, t1.platform)                   AS platform0, 
+                  nvl(t0.geography_id, t1.geography_id)           AS geography_id0, 
+                  nvl(t0.app_version, t1.app_version)             AS app_version0, 
+                  nvl(t0.common_content_id, t1.common_content_id) AS common_content_id0, 
+                  nvl(t0.logged_views,0)                          AS logged_views0, 
+                  nvl(t0.logged_views_duration_min,0)             AS logged_views_duration_min0, 
+                  nvl(t0.logged_downloads,0)                      AS logged_downloads0, 
+                  nvl(t0.anonymous_views,0)                       AS anonymous_views0, 
+                  nvl(t0.anonymous_views_duration_min,0)          AS anonymous_views_duration_min0, 
+                  nvl(t1.logged_detail_views,0)                   AS logged_detail_views0, 
+                  nvl(t1.logged_skipped_views,0)                  AS logged_skipped_views0, 
+                  nvl(t1.anonymous_detail_views,0)                AS anonymous_detail_views0, 
+                  nvl(t1.anonymous_skipped_views,0)               AS anonymous_skipped_views0
+                  
+                       FROM            view_01 t0 
+                           FULL OUTER JOIN view_02 t1 
+                           ON ( t0.context = t1.context ) 
+                           AND  ( t0.date = t1.date ) 
+                           AND  ( t0.timeband = t1.timeband ) 
+                           AND  ( t0.platform = t1.platform ) 
+                           AND  ( t0.geography_id = t1.geography_id ) 
+                           AND  ( t0.app_version = t1.app_version ) 
+                           AND  ( t0.common_content_id = t1.common_content_id )
+    ) temp1 
+      FULL OUTER JOIN view_03 t2
+                       ON ( temp1.context0 = t2.context ) 
+                       AND  ( temp1.date0 = t2.date ) 
+                       AND  ( temp1.timeband0 = t2.timeband ) 
+                       AND  ( temp1.platform0 = t2.platform ) 
+                       AND  ( temp1.geography_id0 = t2.geography_id ) 
+                       AND  ( temp1.app_version0 = t2.app_version ) 
+                       AND  ( temp1.common_content_id0 = t2.common_content_id )
+    ) temp2                    
+      FULL OUTER JOIN view_04 t3
+                       ON ( temp2.context1 = t3.context ) 
+                       AND  ( temp2.date1 = t3.date ) 
+                       AND  ( temp2.timeband1 = t3.timeband ) 
+                       AND  ( temp2.platform1 = t3.platform ) 
+                       AND  ( temp2.geography_id1 = t3.geography_id ) 
+                       AND  ( temp2.app_version1 = t3.app_version ) 
+                       AND  ( temp2.common_content_id1 = t3.common_content_id )
+    )temp3 
+       FULL OUTER JOIN view_05 t4
+                       ON ( temp3.context2 = t4.context ) 
+                       AND  ( temp3.date2 = t4.date ) 
+                       AND  ( temp3.timeband2 = t4.timeband ) 
+                       AND  ( temp3.platform2 = t4.platform ) 
+                       AND  ( temp3.geography_id2 = t4.geography_id ) 
+                       AND  ( temp3.app_version2 = t4.app_version ) 
+                       AND  ( temp3.common_content_id2 = t4.common_content_id )
+    )temp4 
+      FULL OUTER JOIN view_06 t5
+                       ON ( temp4.context3 = t5.context ) 
+                       AND  ( temp4.date3 = t5.date ) 
+                       AND  ( temp4.timeband3 = t5.timeband ) 
+                       AND  ( temp4.platform3 = t5.platform ) 
+                       AND  ( temp4.geography_id3 = t5.geography_id ) 
+                       AND  ( temp4.app_version3 = t5.app_version ) 
+                       AND  ( temp4.common_content_id3 = t5.common_content_id )  
+    )temp5
+      FULL OUTER JOIN view_07 t6
+                       ON ( temp5.context4 = t6.context ) 
+                       AND  ( temp5.date4 = t6.date ) 
+                       AND  ( temp5.timeband4 = t6.timeband ) 
+                       AND  ( temp5.platform4 = t6.platform ) 
+                       AND  ( temp5.geography_id4 = t6.geography_id ) 
+                       AND  ( temp5.app_version4 = t6.app_version ) 
+                       AND  ( temp5.common_content_id4 = t6.common_content_id );  
