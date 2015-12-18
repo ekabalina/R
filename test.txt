@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_VOD_90D.hql
 -- Created on:    12/11/2015
 -- Authors:       Stefanelli, Adriano - Fumagalli, Luca - Melchiorre, Pierpaolo
 -- Purpose:       Process to calculate the VAR Vod 90D KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating a temporary table to store the 1^ subset of VOD's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_90D_tmp01 (     
@@ -47,7 +47,7 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE  
 LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp01';      
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D_tmp01
 -- LOGGED_VIEWERS_90D
 -- ANONYMOUS_VIEWERS_90D
@@ -57,7 +57,7 @@ LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp01';
 -- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEWER_90D
 -- PLAYBACK_DURATION_MIN_PER_LOGGED_VIEW_90D
 -- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEW_90D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 INSERT OVERWRITE TABLE var_vod_90D_tmp01
 SELECT 
   vdm.content_id,
@@ -162,10 +162,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp02';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D_tmp02
 -- VIEWS_SUBSEQUENT_DETAILS_90D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_vod_90D_tmp02
 SELECT 
@@ -263,11 +263,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp03';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D_tmp03
 -- PURCHASES_90D
 -- REVENUES_90D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_vod_90D_tmp03
 SELECT 
@@ -354,10 +354,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp04';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D_tmp04
 -- DOWNLOADS_90D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_vod_90D_tmp04
 SELECT 
@@ -441,10 +441,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp05';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D_tmp05
 -- PLAYLISTS_90D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_vod_90D_tmp05
 SELECT 
@@ -528,10 +528,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp06';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D_tmp06
 -- IMPRESSIONS_90D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_vod_90D_tmp06
 SELECT 
@@ -618,13 +618,13 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_90D_tmp07';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D_tmp07
 -- LIKES_90D
 -- DISLIKES_90D
 -- RATINGS_90D
 -- AVG_RATING_VALUE_90D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_vod_90D_tmp07
 SELECT 
@@ -682,10 +682,10 @@ LEFT OUTER JOIN (
    t2.content_id
 ) b ON ( vdm.content_id = b.content_id );
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_vod_90D
 -- JOIN ALL TEMPORARY TABLES
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_90D (
   content_id STRING,
