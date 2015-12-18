@@ -1,19 +1,19 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Purchases_Monthly.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Purchases_Weekly.hql
 -- Created on:    06/11/2015
 -- Author:        Geetha Nair, Parvathy
--- Purpose:       Process to calculate the Purchases Aggregate (Monthly) table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Purchases Aggregate (Weekly) table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
-drop temporary function Month_c_top;
-create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
+drop temporary function Week_c_top;
+create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
 
 -- inserting data into table agg_purcahses
 INSERT INTO TABLE agg_purchases
-SELECT "Monthly Purchases"               AS CONTEXT, 
+SELECT "Weekly Purchases"                AS CONTEXT, 
        z1.date0                          AS DATE, 
        ""                                AS PLATFORM, 
        z1.geography_id0                  AS GEOGRAPHY_ID, 
@@ -36,7 +36,7 @@ FROM   (SELECT temp1.date1                     AS date0,
                                t2.daily_day                        AS date1, 
                                nvl(t4.geography_id, 0)             AS geography_id1, 
                                t1.userid                           AS users1,
-                               nvl(t1.currency, 0)                 AS currency1
+                               nvl(t1.currency, 0)                 AS currency1                               
                 FROM   target_purchase t1 
                        LEFT OUTER JOIN dim_calendar t2 
                                     ON ( t1.dt_reference = t2.day_identifier ) 
@@ -49,7 +49,7 @@ FROM   (SELECT temp1.date1                     AS date0,
                        LEFT OUTER JOIN dim_common_catalog t5 
                                     ON ( t1.contentid = t5.detail_content_id ) 
                where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) >= 1 and
-DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Month_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
+DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
                        AND t1.contentid IS NOT NULL) temp1 
                LEFT OUTER JOIN (SELECT DISTINCT ( t6.userid )                   AS users2, 
                                                 concat(t6.userid, t6.contentid) AS field2 
@@ -62,20 +62,19 @@ DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_refere
                   temp1.geography_id1,
                   temp1.currency1) z1 
        FULL OUTER JOIN (SELECT t2.daily_day                 AS date2, 
-                               nvl(t4.geography_id, 0)      AS geography_id2,
-                               nvl(t1.currency, 0)          AS currency2                               
+                               nvl(t4.geography_id, 0)      AS geography_id2, 
+                               nvl(t1.currency, 0)          AS currency2  
                         FROM   target_purchase t1 
                                LEFT OUTER JOIN dim_calendar t2 
-                                            ON ( t1.dt_reference = 
-                                                 t2.day_identifier ) 
+                                            ON ( t1.dt_reference = t2.day_identifier ) 
                                LEFT OUTER JOIN target_profiling t3 
                                             ON ( t1.userid = t3.userid ) 
                                LEFT OUTER JOIN dim_geography t4 
                                             ON ( t3.regionname = t4.continent ) 
                                                AND ( t3.country = t4.state ) 
                                                AND ( t3.state = t4.region ) 
-                       WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) >= 1 and
-DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Month_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
+                        WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) >= 1 and
+DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
                         GROUP  BY t2.daily_day, 
                                   nvl(t4.geography_id, 0),
 								  nvl(t1.currency, 0)
