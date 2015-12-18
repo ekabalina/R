@@ -1,147 +1,90 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Advertising_Weekly.hql
--- Created on:    03/11/2015
--- Author:        Calabrese, Alessio
--- Purpose:       Process to calculate the Advertising Aggregate (Weekly) table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Loyalty.hql
+-- Created on:    06/11/2015
+-- Author:        Calabrese, A.
+-- Purpose:       Process to calculate the Loyalty Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+-- creating table to store the Loyalty's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty (
+  context STRING,
+  date STRING,
+  geography_id STRING,
+  platform STRING,
+  new_logged_users INT,
+  loyal_logged_users INT,
+  reconnected_logged_users INT,
+  lost_logged_users INT,
+  new_anonymous_users INT,
+  loyal_anonymous_users INT,
+  reconnected_anonymous_users INT,
+  lost_anonymous_users INT,
+  last_view_period_3 INT,
+  last_view_period_4 INT,
+  last_view_period_min_4 INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/LOYALTY/output';
 
-drop temporary function GetTimeBand;
-drop temporary function Week_c_top;
-drop temporary function Month_c_top;
-create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
-create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
-create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
+-- inserting data into agg_loyalty table from agg_loyalty_daily
+INSERT OVERWRITE TABLE agg_loyalty
+SELECT
+  context                     AS CONTEXT,
+  date                        AS DATE,
+  geography_id                AS GEOGRAPHY_ID,
+  (if(1 == 2, 1, null))       AS PLATFORM,
+  new_logged_users            AS NEW_LOGGED_USERS,
+  loyal_logged_users          AS LOYAL_LOGGED_USERS,
+  reconnected_logged_users    AS RECONNECTED_LOGGED_USERS,
+  lost_logged_users           AS LOST_LOGGED_USERS,
+  new_anonymous_users         AS NEW_ANONYMOUS_USERS,
+  loyal_anonymous_users       AS LOYAL_ANONYMOUS_USERS,
+  reconnected_anonymous_users AS RECONNECTED_ANONYMOUS_USERS,
+  lost_anonymous_user         AS LOST_ANONYMOUS_USERS,
+  last_view_period_3          AS LAST_VIEW_PERIOD_3,
+  last_view_period_4          AS LAST_VIEW_PERIOD_4,
+  last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
+FROM agg_loyalty_daily;
 
--- inserting data into table agg_advertising
-INSERT INTO TABLE agg_advertising
-SELECT context, 
-       date, 
-       "" AS timeband, 
-       "" AS platform, 
-       "" AS ad_format, 
-       geography_id, 
-       "" AS common_content_id, 
-       "" AS advertising_id, 
-       logged_impressions, 
-       logged_clicks_through, 
-       logged_viewed_ads, 
-       logged_skipped_ads, 
-       logged_drop_off, 
-       count(DISTINCT(logged_users)) AS logged_users, 
-       anonymous_impressions, 
-       anonymous_clicks_through, 
-       anonymous_viewed_ads, 
-       anonymous_skipped_ads, 
-       anonymous_drop_off, 
-       count(DISTINCT(anonymous_users)) AS anonymous_users 
-FROM   (  
-  SELECT "Weekly Advertising"                                                                        AS context, 
-         final.daily_day                                                                             AS date, 
-         nvl(final.geography_id, 0)                                                                  AS geography_id, 
-         (IF(1 == 2, 1, NULL))                                                                       AS logged_impressions, 
-         (IF(1 == 2, 1, NULL))                                                                       AS logged_clicks_through, 
-         (IF(1 == 2, 1, NULL))                                                                       AS logged_viewed_ads, 
-         (IF(1 == 2, 1, NULL))                                                                       AS logged_skipped_ads, 
-         (IF(1 == 2, 1, NULL))                                                                       AS logged_drop_off, 
-         (IF(final.completion_percentage == 100 AND final.user_id IS NOT NULL, final.user_id, NULL)) AS logged_users, 
-         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_impressions, 
-         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_clicks_through, 
-         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_viewed_ads, 
-         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_skipped_ads, 
-         (IF(1 == 2, 1, NULL))                                                                       AS anonymous_drop_off, 
-         (IF(final.completion_percentage == 100 AND final.user_id IS NULL, final.device_id, NULL))   AS anonymous_users 
-  FROM   (
-    SELECT *
-    FROM   (
-      SELECT *
-      FROM   (
-        SELECT
-          j1.dt_reference, 
-          j1.timestamp, 
-          j1.user_id, 
-          j1.device_id, 
-          j1.session_id, 
-          j1.device_containers_id, 
-          j1.ticket_id, 
-          j1.platform, 
-          j1.completion_percentage, 
-          j1.has_been_clicked, 
-          j1.has_been_skipped, 
-          j1.ad_format, 
-          j1.shares_aliases, 
-          j1.content_id, 
-          j1.ad_id, 
-          j1.tags, 
-          j1.location, 
-          j1.common_content_id, 
-          j1.regionname, 
-          j1.country, 
-          j1.state, 
-          t3.geography_id, 
-          t3.continent, 
-          t3.state AS state2, 
-          t3.region 
-        FROM   (  
-          SELECT
-            t4.dt_reference, 
-            t4.timestamp, 
-            t4.user_id, 
-            t4.device_id, 
-            t4.session_id, 
-            t4.device_containers_id, 
-            t4.ticket_id, 
-            t4.platform, 
-            t4.completion_percentage, 
-            t4.has_been_clicked, 
-            t4.has_been_skipped, 
-            t4.ad_format, 
-            t4.shares_aliases, 
-            t4.content_id, 
-            t4.ad_id, 
-            t4.tags, 
-            t4.location, 
-            t4.common_content_id, 
-            t5.regionname, 
-            t5.country, 
-            t5.state 
-          FROM (
-            SELECT * 
-            FROM   (SELECT * 
-                    FROM   target_impression 
-                    WHERE  datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), dt_reference) >= 1 
-                      AND  datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), dt_reference) <= 
-                           datediff(date_sub(from_unixtime(Unix_timestamp(), 'yyyy-MM-dd'), 0), Week_c_top(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1)))
-                ) t6 
-         LEFT OUTER JOIN dim_common_catalog t7 
-                      ON t6.content_id = t7.detail_content_id
-            ) t4
-         LEFT OUTER JOIN target_profiling t5
-                      ON t4.USER_ID = t5.USERID
-        ) j1
-         LEFT OUTER JOIN dim_geography t3
-                      ON j1.REGIONNAME = t3.CONTINENT
-                     AND j1.COUNTRY = t3.STATE
-                     AND j1.STATE = t3.REGION
-    ) x3
-) t1
-LEFT OUTER JOIN dim_calendar t2
-             ON t1.dt_reference = t2.day_identifier
-    ) final
-) a
-GROUP BY
-  context, 
-  date, 
-  geography_id, 
-  logged_impressions, 
-  logged_clicks_through, 
-  logged_viewed_ads, 
-  logged_skipped_ads, 
-  logged_drop_off, 
-  anonymous_impressions, 
-  anonymous_clicks_through, 
-  anonymous_viewed_ads, 
-  anonymous_skipped_ads, 
-  anonymous_drop_off;
+-- inserting data into agg_loyalty table from agg_loyalty_weekly    
+INSERT INTO TABLE agg_loyalty
+SELECT
+  context                     AS CONTEXT,
+  date                        AS DATE,
+  geography_id                AS GEOGRAPHY_ID,
+  (if(1 == 2, 1, null))       AS PLATFORM,
+  (if(1 == 2, 1, null))       AS NEW_LOGGED_USERS,
+  loyal_logged_users          AS LOYAL_LOGGED_USERS,
+  reconnected_logged_users    AS RECONNECTED_LOGGED_USERS,
+  lost_logged_users           AS LOST_LOGGED_USERS,
+  (if(1 == 2, 1, null))       AS NEW_ANONYMOUS_USERS,
+  loyal_anonymous_users       AS LOYAL_ANONYMOUS_USERS,
+  reconnected_anonymous_users AS RECONNECTED_ANONYMOUS_USERS,
+  lost_anonymous_user         AS LOST_ANONYMOUS_USERS,
+  last_view_period_3          AS LAST_VIEW_PERIOD_3,
+  last_view_period_4          AS LAST_VIEW_PERIOD_4,
+  last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
+FROM agg_loyalty_weekly;
+   
+-- inserting data into agg_loyalty table from agg_loyalty_monthly   
+INSERT INTO TABLE agg_loyalty
+SELECT
+  context                     AS context,
+  date                        AS date,
+  geography_id                AS geography_id,
+  (if(1 == 2, 1, null))       AS PLATFORM,
+  (if(1 == 2, 1, null))       AS new_logged_users,
+  loyal_logged_users          AS loyal_logged_users,
+  reconnected_logged_users    AS reconnected_logged_users,
+  lost_logged_users           AS lost_logged_users,
+  (if(1 == 2, 1, null))       AS new_anonymous_users,
+  loyal_anonymous_users       AS loyal_anonymous_users,
+  reconnected_anonymous_users AS reconnected_anonymous_users,
+  lost_anonymous_user         AS lost_anonymous_users,
+  last_view_period_3          AS LAST_VIEW_PERIOD_3,
+  last_view_period_4          AS LAST_VIEW_PERIOD_4,
+  last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
+FROM agg_loyalty_monthly;
