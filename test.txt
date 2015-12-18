@@ -1,20 +1,20 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Accesses_Monthly.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Accesses_Weekly.hql
 -- Created on:    09/11/2015
--- Author:        Vinayak Nayak
--- Purpose:       Process to calculate the Accesses Aggregate (Monthly) table
--- -----------------------------------------------------------------------------
+-- Author:        Nayak, Vinayak
+-- Purpose:       Process to calculate the Accesses Aggregate (Weekly) table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
-drop temporary function Month_c_top;
+drop temporary function Week_c_top;
 
-create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top'; 
+create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
 
--- creating a temporary table to store the 1^ subset of Accesses's Monthly KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_monthly_01 (
+-- creating a temporary table to store the 1^ subset of Accesses's Weekly KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_01 (
   CONTEXT STRING,
   DATE DATE,
   GEOGRAPHY_ID STRING,
@@ -25,16 +25,16 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_monthly_01';
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_01';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_monthly_01
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_weekly_01
 -- LOGGED_USERS
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE accesses_monthly_01
+INSERT OVERWRITE TABLE accesses_weekly_01
 SELECT
-  "Monthly Accesses" as CONTEXT,
+  "Weekly Accesses" as CONTEXT,
   x1.DATE as DATE,
   nvl(geography_id, 0) as GEOGRAPHY_ID,
   (CASE 
@@ -44,7 +44,7 @@ SELECT
    WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
    ELSE '>20'
    END ) AS ACCESS_DISTRIBUTION,
-   x1.LOGGED_USERS AS LOGGED_USERS    
+   x1.LOGGED_USERS AS LOGGED_USERS
 from (
  select
     x5.* 
@@ -60,7 +60,7 @@ from (
              x3.*
             from(
                  select
-                 t2.monthly_day as DATE,
+                 t2.weekly_day as DATE,
                  x2.*
                 from(
                          select 
@@ -74,15 +74,15 @@ from (
                                     SELECT t1.userid, COUNT(t1.userid) AS LOGGED_USERS
                                     FROM
                                     target_login t1
-                                    where t1.userid != t1.deviceid AND t1.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    where t1.userid != t1.deviceid AND t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                                     GROUP BY t1.userid
                                  ) A
                              GROUP BY A.LOGGED_USERS, A.userid
-                            )C 
+                            )C
                              Left outer join target_login B ON C.userid = B.userid
                     )x2
                                left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                 )x3
             left outer join target_profiling t2
             on t2.userid = x3.userid
@@ -100,9 +100,9 @@ group by x1.DATE, nvl(geography_id, 0), x1.LOGGED_USERS, CASE
    WHEN (x1.TOT) > 10 AND TOT < 21 THEN '11 to 20'
    ELSE '>20'
    END;
-
--- creating a temporary table to store the 2^ subset of Accesses's Monthly KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_monthly_02 (
+   
+-- creating a temporary table to store the 2^ subset of Accesses's Weekly KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_02 (
   CONTEXT STRING,
   DATE DATE,
   GEOGRAPHY_ID STRING,
@@ -113,16 +113,16 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_monthly_02';
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_02';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_monthly_02
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_weekly_02
 -- LOGGED_USERS_MORE_PLATFORMS
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE accesses_monthly_02
+INSERT OVERWRITE TABLE accesses_weekly_02
 SELECT
-  "Monthly Accesses" as CONTEXT,
+  "Weekly Accesses" as CONTEXT,
   x1.DATE as DATE,
   nvl(geography_id, 0) as GEOGRAPHY_ID,  
   (CASE 
@@ -148,7 +148,7 @@ from (
              x3.*
             from(
                  select
-                 t2.monthly_day as DATE,
+                 t2.weekly_day as DATE,
                  x2.*
                 from(
                          select 
@@ -162,7 +162,7 @@ from (
                                     SELECT t1.userid, COUNT(t1.userid) AS LOGGED_USERS_MORE_PLATFORMS
                                     FROM
                                     target_login t1
-                                    where t1.userid != t1.deviceid AND t1.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    where t1.userid != t1.deviceid AND t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                                     GROUP BY t1.userid, t1.channel
                                     HAVING LOGGED_USERS_MORE_PLATFORMS > 1
                                  ) A
@@ -170,8 +170,8 @@ from (
                             )C 
                              Left outer join target_login B ON C.userid = B.userid
                     )x2
-                        left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                        where x2.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                               left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
+                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                 )x3
             left outer join target_profiling t2
             on t2.userid = x3.userid
@@ -190,8 +190,8 @@ group by x1.DATE, nvl(geography_id, 0), x1.LOGGED_USERS_MORE_PLATFORMS, CASE
    ELSE '>20'
    END;
 
--- creating a temporary table to store the 3^ subset of Accesses's Monthly KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_monthly_03 (
+-- creating a temporary table to store the 3^ subset of Accesses's Weekly KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_03 (
   CONTEXT STRING,
   DATE DATE,
   GEOGRAPHY_ID STRING,
@@ -202,16 +202,16 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_monthly_03';
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_03';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_monthly_03
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_weekly_03
 -- ANONYMOUS_USERS
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE accesses_monthly_03
+INSERT OVERWRITE TABLE accesses_weekly_03
 SELECT
-  "Monthly Accesses" as CONTEXT,
+  "Weekly Accesses" as CONTEXT,
   x1.DATE as DATE,
   nvl(geography_id, 0) as GEOGRAPHY_ID,
   (CASE 
@@ -237,7 +237,7 @@ from (
              x3.*
             from(
                  select
-                 t2.monthly_day as DATE,
+                 t2.weekly_day as DATE,
                  x2.*
                 from(
                          select 
@@ -251,7 +251,7 @@ from (
                                     SELECT t1.userid, COUNT(t1.userid) AS ANONYMOUS_USERS
                                     FROM
                                     target_login t1
-                                    where t1.userid = t1.deviceid AND t1.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    where t1.userid = t1.deviceid AND t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                                     GROUP BY t1.userid
                                  ) A
                              GROUP BY A.ANONYMOUS_USERS, A.userid
@@ -259,7 +259,7 @@ from (
                              Left outer join target_login B ON C.userid = B.userid
                     )x2
                                left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                 )x3
             left outer join target_profiling t2
             on t2.userid = x3.userid
@@ -278,8 +278,8 @@ group by x1.DATE, nvl(geography_id, 0), x1.ANONYMOUS_USERS, CASE
    ELSE '>20'
    END;
 
--- creating a temporary table to store the 4^ subset of Accesses's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_monthly_04 (
+ -- creating a temporary table to store the 4^ subset of Accesses's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_04 (
   CONTEXT STRING,
   DATE DATE,
   GEOGRAPHY_ID STRING,
@@ -290,14 +290,14 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_monthly_04';
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_04';
 
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 -- Temporary table name: accesses_04
 -- DEVICES
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE accesses_monthly_04
+INSERT OVERWRITE TABLE accesses_weekly_04
 SELECT
   "Daily Accesses" as CONTEXT,
   x1.DATE as DATE,
@@ -340,7 +340,7 @@ from (
                                     SELECT t1.deviceid, COUNT(t1.deviceid) AS DEVICES
                                     FROM
                                     target_login t1
-                                    where t1.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    where t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                                     GROUP BY t1.deviceid
                                  ) A
                              GROUP BY A.DEVICES, A.deviceid
@@ -348,7 +348,7 @@ from (
                              Left outer join target_login B ON C.deviceid = B.deviceid
                     )x2
                                left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                 )x3
             left outer join target_profiling t2
             on t2.userid = x3.userid
@@ -369,7 +369,7 @@ group by x1.DATE, nvl(geography_id, 0), x1.DEVICES, CASE
    
    
 -- creating a temporary table to store the 5^ subset of Accesses's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS accesses_monthly_05 (
+CREATE EXTERNAL TABLE IF NOT EXISTS accesses_weekly_05 (
   CONTEXT STRING,
   DATE DATE,
   GEOGRAPHY_ID STRING,
@@ -380,14 +380,14 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_monthly_05';
+LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_05';
 
--- -----------------------------------------------------------------------------
--- Temporary table name: accesses_monthly_05
+-------------------------------------------------------------------------------
+-- Temporary table name: accesses_weekly_05
 -- DISTINCT_USERS_DEVICES
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
 
-INSERT OVERWRITE TABLE accesses_monthly_05
+INSERT OVERWRITE TABLE accesses_weekly_05
 SELECT
   "Daily Accesses" as CONTEXT,
   x1.DATE as DATE,
@@ -430,7 +430,7 @@ from (
                                     SELECT t1.deviceid, COUNT(distinct(t1.deviceid)) AS DEVICES
                                     FROM
                                     target_login t1
-                                    where t1.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                                    where t1.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                                     GROUP BY t1.deviceid
                                  ) A
                              GROUP BY A.DEVICES, A.deviceid
@@ -438,7 +438,7 @@ from (
                              Left outer join target_login B ON C.deviceid = B.deviceid
                     )x2
                                left outer join dim_calendar t2 on x2.dt_reference = t2.day_identifier
-                             where x2.dt_reference between Month_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                             where x2.dt_reference between Week_c_top(from_unixtime(unix_timestamp(),'yyyy-MM-dd')) and (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
                 )x3
             left outer join target_profiling t2
             on t2.userid = x3.userid
@@ -457,9 +457,9 @@ group by x1.DATE, nvl(geography_id, 0), x1.DISTINCT_USERS_DEVICES, CASE
    ELSE '>20'
    END;
    
--- --------------------------------------
+----------------------------------------
 -- FULL OUTER JOIN OF TEMP TABLES
--- --------------------------------------     
+----------------------------------------    
 
 INSERT INTO TABLE agg_accesses
 SELECT
@@ -513,26 +513,26 @@ FROM(
                       nvl(t0.access_distribution, t1.access_distribution)                 AS access_distribution0,
                       nvl(t0.logged_users, 0)                                             AS logged_users0,
                       nvl(t1.logged_users_more_platforms, 0)                              AS logged_users_more_platforms0
-            FROM   accesses_monthly_01 t0 
-            FULL OUTER JOIN accesses_monthly_02 t1 
+            FROM   accesses_weekly_01 t0 
+            FULL OUTER JOIN accesses_weekly_02 t1 
                 ON   ( t0.context = t1.context ) 
                 AND  ( t0.date = t1.date ) 
                 AND  ( t0.geography_id = t1.geography_id ) 
                 AND  ( t0.access_distribution = t1.access_distribution ) 
          )temp1  
-         FULL OUTER JOIN accesses_monthly_03 t2
+         FULL OUTER JOIN accesses_weekly_03 t2
             ON   ( temp1.context0 = t2.context ) 
             AND  ( temp1.date0 = t2.date ) 
             AND  ( temp1.geography_id0 = t2.geography_id ) 
             AND  ( temp1.access_distribution0 = t2.access_distribution )
     )temp2
-    FULL OUTER JOIN accesses_monthly_04 t3
+    FULL OUTER JOIN accesses_weekly_04 t3
         ON   ( temp2.context = t3.context ) 
         AND  ( temp2.date = t3.date ) 
         AND  ( temp2.geography_id = t3.geography_id ) 
         AND  ( temp2.access_distribution = t3.access_distribution )
 )temp3
-FULL OUTER JOIN accesses_monthly_05 t4
+FULL OUTER JOIN accesses_weekly_05 t4
     ON   ( temp3.context = t4.context ) 
     AND  ( temp3.date = t4.date ) 
     AND  ( temp3.geography_id = t4.geography_id )
