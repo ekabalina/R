@@ -1,12 +1,12 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Accesses.hql
 -- Created on:    05/11/2015
 -- Author:        Nayak, Vinayak
 -- Purpose:       Process to calculate the Accesses Aggregate table
--------------------------------------------------------------------------------
+-- ----------------------------------------------------------------------------
 
-delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
-add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function GetTimeBand;
 create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
@@ -107,7 +107,7 @@ FROM (
                                       GROUP BY concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp))
                                        SORT BY num desc
                                          LIMIT 1
-									    ) A
+                                        ) A
                               LEFT JOIN target_login B ON A.minute=concat(to_date(B.timestamp),' ',hour(B.timestamp),':',minute(B.timestamp))
                             ) x2
                 LEFT OUTER JOIN dim_calendar t2 on x2.dt_reference = t2.day_identifier
