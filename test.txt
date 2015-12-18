@@ -1,66 +1,309 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Loyalty_by_Platform.hql
--- Created on:    19/11/2015
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Loyalty_Daily.hql
+-- Created on:    06/11/2015
 -- Author:        Calabrese, A.
--- Purpose:       Process to calculate the Loyalty by Platform Aggregate table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Loyalty Aggregate (Daily) table
+-------------------------------------------------------------------------------
 
--- inserting data into agg_loyalty table from agg_loyalty_daily_by_platform
-INSERT INTO TABLE agg_loyalty
-SELECT
-  context                     AS CONTEXT,
-  date                        AS DATE,
-  geography_id                AS GEOGRAPHY_ID,
-  platform                    AS PLATFORM,
-  new_logged_users            AS NEW_LOGGED_USERS,
-  loyal_logged_users          AS LOYAL_LOGGED_USERS,
-  reconnected_logged_users    AS RECONNECTED_LOGGED_USERS,
-  lost_logged_users           AS LOST_LOGGED_USERS,
-  new_anonymous_users         AS NEW_ANONYMOUS_USERS,
-  loyal_anonymous_users       AS LOYAL_ANONYMOUS_USERS,
-  reconnected_anonymous_users AS RECONNECTED_ANONYMOUS_USERS,
-  lost_anonymous_user         AS LOST_ANONYMOUS_USERS,
-  last_view_period_3          AS LAST_VIEW_PERIOD_3,
-  last_view_period_4          AS LAST_VIEW_PERIOD_4,
-  last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
-FROM agg_loyalty_daily_by_platform;
+-- creating a temporary table to store the 1^ subset of Loyalty's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_daily_tmp1 (
+  context STRING,
+  date STRING,
+  geography_id STRING,
+  new_logged_users INT,
+  loyal_logged_users INT,
+  reconnected_logged_users INT,
+  new_anonymous_users INT,
+  loyal_anonymous_users INT,
+  reconnected_anonymous_users INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_daily_tmp1';
 
--- inserting data into agg_loyalty table from agg_loyalty_weekly_by_platform
-INSERT INTO TABLE agg_loyalty
+-- inserting data into table agg_loyalty_daily_tmp1
+INSERT OVERWRITE TABLE agg_loyalty_daily_tmp1
+SELECT *
+FROM (
 SELECT
-  context                     AS CONTEXT,
-  date                        AS DATE,
-  geography_id                AS GEOGRAPHY_ID,
-  platform                    AS PLATFORM,
-  (if(1 == 2, 1, null))       AS NEW_LOGGED_USERS,
-  loyal_logged_users          AS LOYAL_LOGGED_USERS,
-  reconnected_logged_users    AS RECONNECTED_LOGGED_USERS,
-  lost_logged_users           AS LOST_LOGGED_USERS,
-  (if(1 == 2, 1, null))       AS NEW_ANONYMOUS_USERS,
-  loyal_anonymous_users       AS LOYAL_ANONYMOUS_USERS,
-  reconnected_anonymous_users AS RECONNECTED_ANONYMOUS_USERS,
-  lost_anonymous_user         AS LOST_ANONYMOUS_USERS,
-  last_view_period_3          AS LAST_VIEW_PERIOD_3,
-  last_view_period_4          AS LAST_VIEW_PERIOD_4,
-  last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
-FROM agg_loyalty_weekly_by_platform;
-   
--- inserting data into agg_loyalty table from agg_loyalty_monthly_by_platform
-INSERT INTO TABLE agg_loyalty
+    final.CONTEXT,
+    final.DATE,
+    final.GEOGRAPHY_ID,
+    COUNT(DISTINCT(final.NEW_LOGGED_USERS)) as NEW_LOGGED_USERS,
+    COUNT(DISTINCT(final.LOYAL_LOGGED_USERS)) as LOYAL_LOGGED_USERS,
+    COUNT(DISTINCT(final.RECONNECTED_LOGGED_USERS)) as RECONNECTED_LOGGED_USERS,
+    COUNT(DISTINCT(final.NEW_ANONYMOUS_USERS)) as NEW_ANONYMOUS_USERS,
+    COUNT(DISTINCT(final.LOYAL_ANONYMOUS_USERS)) as LOYAL_ANONYMOUS_USERS,
+    COUNT(DISTINCT(final.RECONNECTED_ANONYMOUS_USERS)) as RECONNECTED_ANONYMOUS_USERS
+FROM (
+SELECT 
+    "Daily Loyalty" AS CONTEXT,
+    to_date(cal.daily_day) AS DATE,
+    nvl(geo.geography_id, 0) AS GEOGRAPHY_ID,
+    (if(watch10.userid1 != watch10.deviceid1, watch10.USERID1, null)) AS NEW_LOGGED_USERS,
+    (if(watch10.USERID2 != watch10.DEVICEID2, watch10.USERID2, null)) AS LOYAL_LOGGED_USERS,
+    (if(watch11.USERID5 != watch11.DEVICEID5, watch11.USERID5, null)) AS RECONNECTED_LOGGED_USERS,
+    (if(watch10.USERID1 = watch10.deviceid1, watch10.DEVICEID1, null)) AS NEW_ANONYMOUS_USERS,
+    (if(watch10.USERID2 = watch10.DEVICEID2, watch10.DEVICEID2, null)) AS LOYAL_ANONYMOUS_USERS,
+    (if(watch11.USERID5 = watch11.DEVICEID5, watch11.DEVICEID5, null)) AS RECONNECTED_ANONYMOUS_USERS
+    FROM
+(select * from
+(select userid as USERID1, deviceid as DEVICEID1, dt_reference as DT_REFERENCE1 from target_watching) watch1
+left outer join
+(SELECT watch3.USERID as USERID2, watch3.DEVICEID as DEVICEID2
+  FROM target_watching watch3, target_watching watch4
+WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch3.DT_REFERENCE) == 1
+     AND watch3.DOWNLOAD != "Y"
+     AND DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch4.DT_REFERENCE) == 2
+     AND watch4.DOWNLOAD != "Y"
+     AND watch3.USERID = watch4.USERID) watch2
+     on (watch1.userid1 = watch2.userid2)) watch10
+left outer join (select * from (
+select * from (
+select * from (
+select * from (
+SELECT watch5.USERID as USERID5, watch5.DEVICEID as DEVICEID5
+from target_watching watch5
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) == 1
+     AND watch5.DOWNLOAD != "Y") t5
+     left outer join
+(SELECT watch6.USERID as USERID6
+from target_watching watch6
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) == 2
+     AND watch6.DOWNLOAD != "Y") t6
+     on t5.userid5 = t6.userid6) temp1
+     left outer join
+(SELECT watch7.USERID as USERID7
+from target_watching watch7
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch7.DT_REFERENCE) == 3
+     AND watch7.DOWNLOAD != "Y") t7
+     on temp1.userid5 = t7.userid7) watch8
+where USERID5 is not null
+and USERID6 is null
+and USERID7 is not null) watch9) watch11
+on watch10.userid1 = watch11.userid5
+JOIN dim_calendar cal
+    on (watch10.dt_reference1 = cal.day_identifier)
+left outer JOIN target_profiling t5
+    on (watch10.USERID1 = t5.USERID)
+left outer JOIN dim_geography geo
+    on (t5.REGIONNAME = geo.CONTINENT) AND
+        (t5.COUNTRY = geo.STATE) AND
+        (t5.STATE = geo.REGION)
+        WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch10.DT_REFERENCE1) == 1
+        AND (watch10.userid1 not in (select t8.userid from target_customer_base_watching t8))) final 
+group by final.context, final.date, final.GEOGRAPHY_ID) c;
+
+-- creating a temporary table to store the 2^ subset of Loyalty's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_daily_tmp2 (
+  context STRING,
+  date STRING,
+  geography_id STRING,
+  lost_logged_users INT,
+  lost_anonymous_users INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_daily_tmp2';
+
+-- inserting data into table agg_loyalty_daily_tmp2
+INSERT OVERWRITE TABLE agg_loyalty_daily_tmp2
+SELECT *
+FROM (
 SELECT
-  context                     AS context,
-  date                        AS date,
-  geography_id                AS geography_id,
-  platform                    AS PLATFORM,
-  (if(1 == 2, 1, null))       AS new_logged_users,
-  loyal_logged_users          AS loyal_logged_users,
-  reconnected_logged_users    AS reconnected_logged_users,
-  lost_logged_users           AS lost_logged_users,
-  (if(1 == 2, 1, null))       AS new_anonymous_users,
-  loyal_anonymous_users       AS loyal_anonymous_users,
-  reconnected_anonymous_users AS reconnected_anonymous_users,
-  lost_anonymous_user         AS lost_anonymous_users,
-  last_view_period_3          AS LAST_VIEW_PERIOD_3,
-  last_view_period_4          AS LAST_VIEW_PERIOD_4,
-  last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
-FROM agg_loyalty_monthly_by_platform;
+    final.CONTEXT,
+    final.DATE,
+    final.GEOGRAPHY_ID,
+    COUNT(DISTINCT(final.LOST_LOGGED_USERS)) as LOST_LOGGED_USERS,
+    COUNT(DISTINCT(final.LOST_ANONYMOUS_USERS)) as LOST_ANONYMOUS_USERS
+FROM (
+SELECT 
+    "Daily Loyalty" AS CONTEXT,
+    to_date(cal.daily_day) AS DATE,
+    Nvl(geo.geography_id, 0) AS GEOGRAPHY_ID,
+    (if(watch1.USERID5 != watch1.DEVICEID5, watch1.USERID5, null)) AS LOST_LOGGED_USERS,
+    (if(watch1.USERID5 = watch1.DEVICEID5, watch1.USERID5, null)) AS LOST_ANONYMOUS_USERS
+    FROM
+(select * from (
+select * from (
+select * from (
+select * from (
+SELECT watch5.USERID as USERID5, watch5.deviceid as DEVICEID5, (date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)) as DT_REFERENCE5
+from target_watching watch5
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) == 3
+     AND watch5.DOWNLOAD != "Y") t5
+     left outer join
+(SELECT watch6.USERID as USERID6
+from target_watching watch6
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) == 2
+     AND watch6.DOWNLOAD != "Y") t6
+     on t5.userid5 = t6.userid6) temp1
+     left outer join
+(SELECT watch7.USERID as USERID7
+from target_watching watch7
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch7.DT_REFERENCE) == 1
+     AND watch7.DOWNLOAD != "Y") t7
+     on temp1.userid5 = t7.userid7) watch8
+where USERID5 is not null
+and USERID6 is null
+and USERID7 is null) watch9) watch1
+JOIN dim_calendar cal
+    on (watch1.dt_reference5 = cal.day_identifier)
+left outer JOIN target_profiling t5
+    on (watch1.USERID5 = t5.USERID)
+left outer JOIN dim_geography geo
+    on (t5.REGIONNAME = geo.CONTINENT) AND
+        (t5.COUNTRY = geo.STATE) AND
+        (t5.STATE = geo.REGION)) final 
+group by final.context, final.date, final.GEOGRAPHY_ID) c;
+
+-- creating a temporary table to store the 3^ subset of Loyalty's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_daily_tmp3 (
+  context STRING,
+  date STRING,
+  geography_id STRING,
+  LAST_VIEW_PERIOD_3 INT,
+  LAST_VIEW_PERIOD_4 INT,
+  LAST_VIEW_PERIOD_MIN_4 INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_daily_tmp3';
+
+-- inserting data into table agg_loyalty_daily_tmp3
+INSERT OVERWRITE TABLE agg_loyalty_daily_tmp3
+SELECT *
+FROM (
+SELECT
+    final.CONTEXT,
+    final.DATE,
+    final.GEOGRAPHY_ID,
+    COUNT(DISTINCT(final.LAST_VIEW_PERIOD_3)) as LAST_VIEW_PERIOD_3,
+    COUNT(DISTINCT(final.LAST_VIEW_PERIOD_4)) as LAST_VIEW_PERIOD_4,
+    COUNT(DISTINCT(final.LAST_VIEW_PERIOD_MIN_4)) as LAST_VIEW_PERIOD_MIN_4
+FROM (
+SELECT 
+    "Daily Loyalty" AS CONTEXT,
+    to_date(cal.daily_day) AS DATE,
+    nvl(geo.geography_id, 0) AS GEOGRAPHY_ID,
+    (if(watch10.USERID1 is not null and watch10.USERID2 is null and watch10.USERID3 is null and watch10.USERID4 is not null, watch10.USERID1, null)) AS LAST_VIEW_PERIOD_3,
+    (if(watch10.USERID1 is not null and watch10.USERID2 is null and watch10.USERID3 is null and watch10.USERID4 is null and watch10.USERID5 is not null, watch10.USERID1, null)) AS LAST_VIEW_PERIOD_4,
+    (if(watch10.USERID1 is not null and watch10.USERID2 is null and watch10.USERID3 is null and watch10.USERID4 is null and watch10.USERID5 is null and watch10.USERID6 is not null, watch10.USERID1, null)) AS LAST_VIEW_PERIOD_MIN_4
+    FROM (
+select * from (
+select * from (
+select * from (
+select * from (
+select * from (
+SELECT watch1.USERID as USERID1, watch1.DT_REFERENCE as DT_REFERENCE1
+from target_watching watch1
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch1.DT_REFERENCE) == 1) t1
+     left outer join
+(SELECT watch2.USERID as USERID2
+from target_watching watch2
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch2.DT_REFERENCE) == 2) t2
+     on t1.userid1 = t2.userid2) temp1
+     left outer join
+(SELECT watch3.USERID as USERID3
+from target_watching watch3
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch3.DT_REFERENCE) == 3) t3
+     on temp1.userid1 = t3.userid3) temp2
+      left outer join
+(SELECT watch4.USERID as USERID4
+from target_watching watch4
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch4.DT_REFERENCE) == 4) t4
+     on temp2.userid1 = t4.userid4) temp3
+      left outer join
+(SELECT watch5.USERID as USERID5
+from target_watching watch5
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) == 5) t5
+     on temp3.userid1 = t5.userid5) temp4
+      left outer join
+(SELECT watch6.USERID as USERID6
+from target_watching watch6
+where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) >= 6) t6
+     on temp4.userid1 = t6.userid6) watch10
+JOIN dim_calendar cal
+    on (watch10.dt_reference1 = cal.day_identifier)
+left outer JOIN target_profiling prof
+    on (watch10.USERID1 = prof.USERID)
+left outer JOIN dim_geography geo
+    on (prof.REGIONNAME = geo.CONTINENT) AND
+        (prof.COUNTRY = geo.STATE) AND
+        (prof.STATE = geo.REGION)
+        WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch10.DT_REFERENCE1) == 1) final 
+group by final.context, final.date, final.GEOGRAPHY_ID) c;
+
+-- creating the final Daily table to store the previous subsets of Loyalty's KPIs 
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_daily (
+  context STRING,
+  date STRING,
+  geography_id STRING,
+  new_logged_users INT,
+  loyal_logged_users INT,
+  reconnected_logged_users INT,
+  lost_logged_users INT,
+  new_anonymous_users INT,
+  loyal_anonymous_users INT,
+  reconnected_anonymous_users INT,
+  lost_anonymous_user INT,
+  LAST_VIEW_PERIOD_3 INT,
+  LAST_VIEW_PERIOD_4 INT,
+  LAST_VIEW_PERIOD_MIN_4 INT
+)
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
+STORED AS TEXTFILE
+LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_daily';
+
+-- inserting data into table agg_loyalty_daily
+INSERT OVERWRITE TABLE agg_loyalty_daily
+SELECT *
+FROM (
+SELECT
+    nvl(j1.CONTEXT, tmp3.CONTEXT) as CONTEXT,
+    nvl(j1.DATE, tmp3.DATE) as DATE,
+    nvl(j1.GEOGRAPHY_ID, tmp3.GEOGRAPHY_ID) as GEOGRAPHY_ID,
+    nvl(j1.new_logged_users, 0) as new_logged_users,
+    nvl(j1.loyal_logged_users, 0) as loyal_logged_users,
+    nvl(j1.reconnected_logged_users, 0) as reconnected_logged_users,
+    nvl(j1.lost_logged_users, 0) as lost_logged_users,
+    nvl(j1.new_anonymous_users, 0) as new_anonymous_users,
+    nvl(j1.loyal_anonymous_users, 0) as loyal_anonymous_users,
+    nvl(j1.reconnected_anonymous_users, 0) as reconnected_anonymous_users,
+    nvl(j1.lost_anonymous_users, 0) as lost_anonymous_users,
+	nvl(tmp3.LAST_VIEW_PERIOD_3, 0) as LAST_VIEW_PERIOD_3,
+	nvl(tmp3.LAST_VIEW_PERIOD_4, 0) as LAST_VIEW_PERIOD_4,
+	nvl(tmp3.LAST_VIEW_PERIOD_MIN_4, 0) as LAST_VIEW_PERIOD_MIN_4
+FROM (
+SELECT
+    nvl(tmp1.CONTEXT, tmp2.CONTEXT) as CONTEXT,
+    nvl(tmp1.DATE, tmp2.DATE) as DATE,
+    nvl(tmp1.GEOGRAPHY_ID, tmp2.GEOGRAPHY_ID) as GEOGRAPHY_ID,
+    nvl(tmp1.new_logged_users, 0) as new_logged_users,
+    nvl(tmp1.loyal_logged_users, 0) as loyal_logged_users,
+    nvl(tmp1.reconnected_logged_users, 0) as reconnected_logged_users,
+    nvl(tmp2.lost_logged_users, 0) as lost_logged_users,
+    nvl(tmp1.new_anonymous_users, 0) as new_anonymous_users,
+    nvl(tmp1.loyal_anonymous_users, 0) as loyal_anonymous_users,
+    nvl(tmp1.reconnected_anonymous_users, 0) as reconnected_anonymous_users,
+    nvl(tmp2.lost_anonymous_users, 0) as lost_anonymous_users
+from
+agg_loyalty_daily_tmp1 tmp1
+full outer join
+agg_loyalty_daily_tmp2 tmp2
+on (tmp1.CONTEXT = tmp2.CONTEXT) and (tmp1.DATE = tmp2.DATE) and (tmp1.GEOGRAPHY_ID = tmp2.GEOGRAPHY_ID)) j1
+full outer join
+agg_loyalty_daily_tmp3 tmp3
+on (j1.CONTEXT = tmp3.CONTEXT) and (j1.DATE = tmp3.DATE) and (j1.GEOGRAPHY_ID = tmp3.GEOGRAPHY_ID)) j2;
+
+drop table agg_loyalty_daily_tmp1;
+drop table agg_loyalty_daily_tmp2;
+drop table agg_loyalty_daily_tmp3;
