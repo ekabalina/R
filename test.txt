@@ -1,141 +1,91 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_QoS.hql
--- Created on:    02/11/2015
--- Author:        Venkateswarlu, U.
--- Purpose:       Process to calculate the QoS Aggregate table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Registrations.hql
+-- Created on:    28/10/2015
+-- Author:        Parvathy Geetha Nair
+-- Purpose:       Process to calculate the Registration Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-
-drop temporary function GetTimeBand;
-create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
-
--- creation of aggregate QoS table
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_qos (
+-- creation of aggregate registrations table 
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_registrations (
   context STRING,
   date STRING,
-  timeband STRING,
-  platform STRING,
+  gender STRING,
+  registration_method STRING,
+  registration_trigger STRING,
+  refferal_source STRING,
   geography_id STRING,
-  app_version STRING,
-  logged_buffer_time INT,
-  logged_sample_interval INT,
-  logged_drop_off INT,
-  logged_video_end INT,
-  anonymous_buffer_time INT,
-  anonymous_sample_interval INT,
-  anonymous_drop_off INT,
-  anonymous_video_end INT
+  registered_users INT,
+  total_registration INT
 )
-ROW FORMAT DELIMITED 
-FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n' 
+ROW FORMAT
+DELIMITED FIELDS TERMINATED BY '\073'
+LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/QOS/output';
+LOCATION '${hivevar:root_path}/agg/REGISTRATIONS/output';
 
--- inserting data into table agg_qos
-INSERT OVERWRITE TABLE agg_qos
-SELECT 
-        nvl(temp1.context1,temp2.context2)           AS context,
-        nvl(temp1.date1,temp2.date2)                 AS date,
-        nvl(temp1.timeband1,temp2.timeband2)         AS timeband,
-        nvl(temp1.platform1,temp2.platform2)         AS platform,
-        nvl(temp1.geography_id1,temp2.geography_id2) AS geography_id,
-        nvl(temp1.app_version1,temp2.app_version2)   AS app_version,
-        temp1.logged_buffer_time,
-        temp1.logged_sample_interval,
-        temp2.logged_drop_off,
-        temp2.logged_video_end,
-        temp1.anonymous_buffer_time,
-        temp1.anonymous_sample_interval,
-        temp2.anonymous_drop_off,
-        temp2.anonymous_video_end
-FROM (
-SELECT t0.context as context1,
-       t0.date as date1,
-       t0.platform as platform1,
-       t0.app_version as app_version1,
-       round(sum(t0.logged_buffer_time))    AS logged_buffer_time,
-       round(sum(t0.anonymous_buffer_time)) AS anonymous_buffer_time,
-       count(t0.logged_sample_interval)     AS logged_sample_interval,
-       count(t0.anonymous_sample_interval)  AS anonymous_sample_interval,
-       t0.timeband AS timeband1,
-       t0.geography_id as geography_id1
-FROM  (
-     SELECT   "Quality Of Service"                                      AS CONTEXT,
-              cast(t2.daily_day AS STRING)                              AS DATE,
-              t4.channel                                                AS PLATFORM,
-              t4.appversion                                             AS APP_VERSION,
-              ( IF(t4.userid != t4.deviceid, t4.buffertime, NULL) )     AS LOGGED_BUFFER_TIME,
-              ( IF(t4.userid = t4.deviceid, t4.buffertime, NULL) )      AS ANONYMOUS_BUFFER_TIME,
-              ( IF(t4.userid != t4.deviceid, t4.videosessionid, NULL) ) AS LOGGED_SAMPLE_INTERVAL,
-              ( IF(t4.userid = t4.deviceid, t4.videosessionid, NULL) )  AS ANONYMOUS_SAMPLE_INTERVAL,
-              GetTimeBand(t4.timestamp)                                 AS TIMEBAND,
-              nvl(t5.geography_id,0)                                    AS GEOGRAPHY_ID
-       FROM   target_video_quality t4
-              LEFT OUTER JOIN dim_calendar t2
-                           ON ( t4.dt_reference = t2.day_identifier )
-              LEFT OUTER JOIN target_profiling t6 
-                            ON ( t4.userid = t6.userid )
-              LEFT OUTER JOIN dim_geography t5 
-                            ON ( t6.regionname = t5.continent) 
-                               AND ( t6.country = t5.state) 
-                               AND ( t6.state = t5.region )                   
-       WHERE  t4.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
-       ) t0
-GROUP  BY t0.context,
-          t0.date,
-          t0.platform,
-          t0.app_version,
-          t0.timeband,
-          t0.geography_id
-) temp1
-FULL OUTER JOIN
-(
-SELECT t0.context                  AS context2,
-       t0.date                     AS date2,
-       t0.platform                 AS platform2,
-       t0.app_version              AS app_version2,
-       sum(t0.logged_drop_off)     AS logged_drop_off,
-       sum(t0.logged_video_end)    AS logged_video_end,
-       sum(t0.anonymous_drop_off)  AS anonymous_drop_off,
-       sum(t0.anonymous_video_end) AS anonymous_video_end,
-       t0.timeband                 AS timeband2,
-       t0.geography_id             AS geography_id2
-FROM  (SELECT "Quality Of Service"                                                                                    AS CONTEXT,
-              date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1)                                              AS DATE,
-              t4.channel                                                                                              AS PLATFORM,
-              t4.appversion                                                                                           AS APP_VERSION,
-              ( IF(t5.userid != t5.deviceid AND t5.eventtype = 'VIDEOEND' AND t5.terminationreason = 'ERROR', 1, 0) ) AS LOGGED_DROP_OFF,
-              ( IF(t5.userid != t5.deviceid AND t5.eventtype = 'VIDEOEND', 1, 0) )                                    AS LOGGED_VIDEO_END,
-              ( IF(t5.userid = t5.deviceid AND t5.eventtype = 'VIDEOEND' AND t5.terminationreason = 'ERROR', 1, 0) )  AS ANONYMOUS_DROP_OFF,
-              ( IF(t5.userid = t5.deviceid AND t5.eventtype = 'VIDEOEND', 1, 0) )                                     AS ANONYMOUS_VIDEO_END,
-              GetTimeBand(t4.timestamp)                                                                               AS TIMEBAND,
-              nvl(t7.geography_id,0)                                                                                  AS GEOGRAPHY_ID
-       FROM   target_user_action t5
-              LEFT OUTER JOIN target_video_quality t4
-                           ON ( t5.userid = t4.userid )
-                         JOIN dim_calendar t2
-                           ON ( t4.dt_reference = t2.day_identifier )
-              LEFT OUTER JOIN target_profiling t6 
-                           ON ( t4.userid = t6.userid )
-              LEFT OUTER JOIN dim_geography t7 
-                           ON ( t6.regionname = t7.continent) 
-                          AND ( t6.country = t7.state) 
-                          AND ( t6.state = t7.region ) 
-       WHERE  t5.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )) t0
-GROUP  BY t0.context,
-          t0.date,
-          t0.platform,
-          t0.app_version,
-          t0.timeband,
-          t0.geography_id
-) temp2
-        ON ( temp1.context1 = temp2.context2)
-        AND (temp1.date1 = temp2.date2)
-        AND (temp1.platform1 = temp2.platform2)
-        AND (temp1.app_version1 = temp2.app_version2) 
-        AND (temp1.timeband1 = temp2.timeband2)
-        AND (temp1.geography_id1 = temp2.geography_id2);
-		
+-- inserting data into table agg_registrations
+INSERT OVERWRITE TABLE agg_registrations
+SELECT temp2.context,
+       temp2.date,
+       temp2.gender,
+       temp2.registration_method,
+       temp2.registration_trigger,
+       temp2.referral_source,
+       temp2.geography_id,
+       temp1.registered_users,
+       temp2.total_registrations
+FROM   (SELECT "Registrations"                  AS CONTEXT,
+               t0.*
+        FROM   (SELECT t2.daily_day             AS DATE,
+                       t3.gender                AS GENDER,
+                       t1.registrationmethod    AS REGISTRATION_METHOD,
+                       t1.registrationtrigger   AS REGISTRATION_TRIGGER,
+                       t1.referralsource        AS REFERRAL_SOURCE,
+                       nvl(t4.geography_id, 0)  AS GEOGRAPHY_ID,
+                       count(t1.uniquecontract) AS REGISTERED_USERS
+                FROM   target_join t1
+                       JOIN dim_calender t2
+                         ON ( t1.dt_reference = t2.day_identifier )
+                       JOIN target_profiling t3
+                         ON ( t1.uniquecontract = t3.userid )
+                       JOIN dim_geography t4
+                         ON ( t3.regionname = t4.continent )
+                            AND ( t3.country = t4.state )
+                            AND ( t3.state = t4.region )
+                WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
+                GROUP  BY t2.daily_day,
+                          t3.gender,
+                          t1.registrationmethod,
+                          t1.registrationtrigger,
+                          t1.referralsource,
+                          Nvl(t4.geography_id, 0)) t0) temp1
+       FULL OUTER JOIN (SELECT "Registrations"                                                    AS CONTEXT,
+                               t0.*
+                        FROM   (SELECT date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) AS DATE,
+                                       t3.gender                                                  AS GENDER,
+                                       t1.registrationmethod                                      AS REGISTRATION_METHOD,
+                                       t1.registrationtrigger                                     AS REGISTRATION_TRIGGER,
+                                       t1.referralsource                                          AS REFERRAL_SOURCE,
+                                       nvl(t4.geography_id, 0)                                    AS GEOGRAPHY_ID,
+                                       count(z.userid)                                            AS TOTAL_REGISTRATIONS
+                                FROM   target_customer_base_join z
+                                       LEFT OUTER JOIN target_join t1
+                                                    ON ( z.userid = t1.uniquecontract )
+                                       JOIN target_profiling t3
+                                         ON ( z.userid = t3.userid )
+                                       JOIN dim_geography t4
+                                         ON ( t3.regionname = t4.continent )
+                                            AND ( t3.country = t4.state )
+                                            AND ( t3.state = t4.region )
+                                GROUP  BY date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1),
+                                          t3.gender,
+                                          t1.registrationmethod,
+                                          t1.registrationtrigger,
+                                          t1.referralsource,
+                                          Nvl(t4.geography_id, 0)) t0) temp2
+                    ON ( temp1.date = temp2.date )
+                       AND ( temp1.gender = temp2.gender )
+                       AND ( temp1.registration_method = temp2.registration_method )
+                       AND ( temp1.registration_trigger = temp2.registration_trigger )
+                       AND ( temp1.referral_source = temp2.referral_source )
+                       AND ( temp1.geography_id = temp2.geography_id );
