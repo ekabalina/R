@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_Logged.hql
 -- Created on:    13/11/2015
 -- Authors:       Melchiorre, Pierpaolo
 -- Purpose:       Process to calculate the VAR Logged KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating table to store the VAR Logged's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_logged (
