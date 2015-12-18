@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_Anonymous_30D.hql
 -- Created on:    10/11/2015
 -- Authors:       Stefanelli, Adriano - Fumagalli, Luca - Melchiorre, Pierpaolo
 -- Purpose:       Process to calculate the VAR Anonymous 30D KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating a temporary table to store the 1^ subset of VAR Anonymous's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D_tmp01 (
@@ -21,10 +21,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp01';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp01
 -- ACCESSES_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp01
 SELECT 
@@ -70,11 +70,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp02';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp02
 -- VIDEO_VIEWS_30D
 -- VIDEO_PLAYBACK_DURATION_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp02
 SELECT 
@@ -124,11 +124,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp03';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp03
 -- LIVE_VIEWS_30D
 -- LIVE_PLAYBACK_DURATION_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp03
 SELECT 
@@ -178,11 +178,11 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp04';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp04
 -- VIEWS_30D
 -- PLAYBACK_DURATION_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp04
 SELECT 
@@ -255,10 +255,10 @@ WHERE dt_reference >= DATE_SUB(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd') , 30
   AND (t0.userid = t0.deviceid) 
 GROUP BY t0.deviceid, t0.contentid;
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp05
 -- TOP_WATCHED_CATEGORY_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp05
 SELECT
@@ -333,10 +333,10 @@ AND dt_reference < FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd')
   AND (t0.userid = t0.deviceid) 
 GROUP BY t0.deviceid, t0.contentid;
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp06
 -- TOP_WATCHED_CHANNEL_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp06
 SELECT
@@ -389,13 +389,13 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp07';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp07
 -- IMPRESSIONS_30D
 -- VIEWED_ADV_30D
 -- CLICKS_THROUGH_30D
 -- SKIPPED_ADV_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp07
 SELECT
@@ -450,10 +450,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp08';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp08
 -- SEARCHES_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp08
 SELECT
@@ -501,12 +501,12 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/VAR_ANONYMOUS/var_anonymous_30D_tmp09';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D_tmp09
 -- LAUNCHED_APPS_30D
 -- VIDEO_DROP_OFF_30D
 -- AVERAGE_VIDEO_DROP_OFF_30D
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE var_anonymous_30D_tmp09
 SELECT
@@ -549,10 +549,10 @@ LEFT OUTER JOIN (
 )b
 ON ( vam.device_id = b.device_id );
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: var_anonymous_30D
 -- JOIN ALL TEMPORARY TABLES
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 CREATE EXTERNAL TABLE IF NOT EXISTS var_anonymous_30D (
   date STRING,
