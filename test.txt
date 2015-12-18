@@ -1,12 +1,12 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Advertising_Monthly.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Advertising_Weekly.hql
 -- Created on:    03/11/2015
 -- Author:        Calabrese, Alessio
--- Purpose:       Process to calculate the Advertising Aggregate (Monthly) table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Advertising Aggregate (Weekly) table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
 drop temporary function GetTimeBand;
 drop temporary function Week_c_top;
@@ -38,7 +38,7 @@ SELECT context,
        anonymous_drop_off, 
        count(DISTINCT(anonymous_users)) AS anonymous_users 
 FROM   (  
-  SELECT "Monthly Advertising"                                                                       AS context, 
+  SELECT "Weekly Advertising"                                                                        AS context, 
          final.daily_day                                                                             AS date, 
          nvl(final.geography_id, 0)                                                                  AS geography_id, 
          (IF(1 == 2, 1, NULL))                                                                       AS logged_impressions, 
@@ -56,7 +56,7 @@ FROM   (
   FROM   (
     SELECT *
     FROM   (
-      SELECT * 
+      SELECT *
       FROM   (
         SELECT
           j1.dt_reference, 
@@ -85,7 +85,7 @@ FROM   (
           t3.state AS state2, 
           t3.region 
         FROM   (  
-          SELECT 
+          SELECT
             t4.dt_reference, 
             t4.timestamp, 
             t4.user_id, 
@@ -113,22 +113,22 @@ FROM   (
                     FROM   target_impression 
                     WHERE  datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), dt_reference) >= 1 
                       AND  datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), dt_reference) <= 
-                           datediff(date_sub(from_unixtime(Unix_timestamp(), 'yyyy-MM-dd'), 0), Month_c_top(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1)))
-                    ) t6 
-                  LEFT OUTER JOIN test.dim_common_catalog t7 
-                               ON t6.content_id = t7.detail_content_id
-                ) t4
-      LEFT OUTER JOIN target_profiling t5
-                   ON t4.USER_ID = t5.USERID
-            ) j1
-      LEFT OUTER JOIN dim_geography t3
-                   ON j1.REGIONNAME = t3.CONTINENT
-                  AND j1.COUNTRY = t3.STATE
-                  AND j1.STATE = t3.REGION
-        ) x3
-    ) t1
-    LEFT OUTER JOIN dim_calendar t2
-                 ON t1.dt_reference = t2.day_identifier
+                           datediff(date_sub(from_unixtime(Unix_timestamp(), 'yyyy-MM-dd'), 0), Week_c_top(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1)))
+                ) t6 
+         LEFT OUTER JOIN dim_common_catalog t7 
+                      ON t6.content_id = t7.detail_content_id
+            ) t4
+         LEFT OUTER JOIN target_profiling t5
+                      ON t4.USER_ID = t5.USERID
+        ) j1
+         LEFT OUTER JOIN dim_geography t3
+                      ON j1.REGIONNAME = t3.CONTINENT
+                     AND j1.COUNTRY = t3.STATE
+                     AND j1.STATE = t3.REGION
+    ) x3
+) t1
+LEFT OUTER JOIN dim_calendar t2
+             ON t1.dt_reference = t2.day_identifier
     ) final
 ) a
 GROUP BY
