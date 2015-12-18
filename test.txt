@@ -1,91 +1,128 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Registrations.hql
--- Created on:    28/10/2015
--- Author:        Parvathy Geetha Nair
--- Purpose:       Process to calculate the Registration Aggregate table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_User_Experience.hql
+-- Created on:    05/11/2015
+-- Authors:       Kansal, Arshi
+-- Purpose:       Process to calculate the User Experience Aggregate table
+-------------------------------------------------------------------------------
 
--- creation of aggregate registrations table 
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_registrations (
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+
+drop temporary function GetTimeBand;
+create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
+
+-- creation of table for User Experience Aggregate entity
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_user_experience (
   context STRING,
   date STRING,
-  gender STRING,
-  registration_method STRING,
-  registration_trigger STRING,
-  refferal_source STRING,
+  timeband STRING,
+  platform STRING,
   geography_id STRING,
-  registered_users INT,
-  total_registration INT
+  app_version STRING,
+  common_content_id STRING,
+  search_option STRING,
+  logged_searches INT,
+  logged_no_results_found INT,
+  likes INT,
+  dislikes INT,
+  likes_watched_contents INT,
+  dislikes_watched_contents INT,
+  ratings INT,
+  average_ratings_value DOUBLE,
+  logged_trailer_views INT,
+  logged_conversion_trailer_movie INT,
+  playlists INT,
+  seasons_in_playlists INT,
+  episodes_in_playlists INT,
+  logged_reminders INT,
+  anonymous_trailer_views INT,
+  anonymous_conversion_trailer_movie INT,
+  anonymous_reminders INT
 )
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
+ROW FORMAT DELIMITED
+FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/REGISTRATIONS/output';
+LOCATION '${hivevar:root_path}/agg/USER_EXPERIENCE/output';
 
--- inserting data into table agg_registrations
-INSERT OVERWRITE TABLE agg_registrations
-SELECT temp2.context,
-       temp2.date,
-       temp2.gender,
-       temp2.registration_method,
-       temp2.registration_trigger,
-       temp2.referral_source,
-       temp2.geography_id,
-       temp1.registered_users,
-       temp2.total_registrations
-FROM   (SELECT "Registrations"                  AS CONTEXT,
-               t0.*
-        FROM   (SELECT t2.daily_day             AS DATE,
-                       t3.gender                AS GENDER,
-                       t1.registrationmethod    AS REGISTRATION_METHOD,
-                       t1.registrationtrigger   AS REGISTRATION_TRIGGER,
-                       t1.referralsource        AS REFERRAL_SOURCE,
-                       nvl(t4.geography_id, 0)  AS GEOGRAPHY_ID,
-                       count(t1.uniquecontract) AS REGISTERED_USERS
-                FROM   target_join t1
-                       JOIN dim_calender t2
-                         ON ( t1.dt_reference = t2.day_identifier )
-                       JOIN target_profiling t3
-                         ON ( t1.uniquecontract = t3.userid )
-                       JOIN dim_geography t4
-                         ON ( t3.regionname = t4.continent )
-                            AND ( t3.country = t4.state )
-                            AND ( t3.state = t4.region )
-                WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
-                GROUP  BY t2.daily_day,
-                          t3.gender,
-                          t1.registrationmethod,
-                          t1.registrationtrigger,
-                          t1.referralsource,
-                          Nvl(t4.geography_id, 0)) t0) temp1
-       FULL OUTER JOIN (SELECT "Registrations"                                                    AS CONTEXT,
-                               t0.*
-                        FROM   (SELECT date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) AS DATE,
-                                       t3.gender                                                  AS GENDER,
-                                       t1.registrationmethod                                      AS REGISTRATION_METHOD,
-                                       t1.registrationtrigger                                     AS REGISTRATION_TRIGGER,
-                                       t1.referralsource                                          AS REFERRAL_SOURCE,
-                                       nvl(t4.geography_id, 0)                                    AS GEOGRAPHY_ID,
-                                       count(z.userid)                                            AS TOTAL_REGISTRATIONS
-                                FROM   target_customer_base_join z
-                                       LEFT OUTER JOIN target_join t1
-                                                    ON ( z.userid = t1.uniquecontract )
-                                       JOIN target_profiling t3
-                                         ON ( z.userid = t3.userid )
-                                       JOIN dim_geography t4
-                                         ON ( t3.regionname = t4.continent )
-                                            AND ( t3.country = t4.state )
-                                            AND ( t3.state = t4.region )
-                                GROUP  BY date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1),
-                                          t3.gender,
-                                          t1.registrationmethod,
-                                          t1.registrationtrigger,
-                                          t1.referralsource,
-                                          Nvl(t4.geography_id, 0)) t0) temp2
-                    ON ( temp1.date = temp2.date )
-                       AND ( temp1.gender = temp2.gender )
-                       AND ( temp1.registration_method = temp2.registration_method )
-                       AND ( temp1.registration_trigger = temp2.registration_trigger )
-                       AND ( temp1.referral_source = temp2.referral_source )
-                       AND ( temp1.geography_id = temp2.geography_id );
+INSERT OVERWRITE TABLE agg_user_experience
+SELECT "Experience"                                    AS context, 
+       final.DATE                                      AS date, 
+       final.timeband                                  AS timeband, 
+       final.platform                                  AS platform, 
+       final.geography_id                              AS geography_id, 
+       final.app_version                               AS app_version, 
+       final.common_content_id                         AS common_content_id, 
+       ""                                              AS search_option, 
+       ( IF(1 == 2, 1, NULL) )                         AS logged_searches, 
+       ( IF(1 == 2, 1, NULL) )                         AS logged_no_results_found, 
+       ( IF(1 == 2, 1, NULL) )                         AS likes, 
+       ( IF(1 == 2, 1, NULL) )                         AS dislikes, 
+       ( IF(1 == 2, 1, NULL) )                         AS likes_watched_contents,
+       ( IF(1 == 2, 1, NULL) )                         AS dislikes_watched_contents, 	   
+       ( IF(1 == 2, 1, NULL) )                         AS ratings,
+       ( IF(1 == 2, 1, NULL) )                         AS average_ratings_value, 	   
+       count(final.logged_trailer_views)               AS logged_trailer_views, 
+       count(final.logged_conversion_trailer_movie)    AS logged_conversion_trailer_movie, 
+       count(final.playlists)                          AS playlists, 
+       count(final.seasons_in_playlists)               AS seasons_in_playlists, 
+       count(final. episodes_in_playlists)             AS episodes_in_playlists, 
+       count(final.logged_reminders)                   AS logged_reminders, 
+       ( IF(1 == 2, 1, NULL) )                         AS anonymous_searches, 
+       ( IF(1 == 2, 1, NULL) )                         AS anonymous_no_results_found, 
+       count(final.anonymous_trailer_views)            AS anonymous_trailer_views, 
+       count(final.anonymous_conversion_trailer_movie) AS anonymous_conversion_trailer_movie, 
+       count(final.anonymous_reminders)                AS anonymous_reminders 
+FROM   (SELECT * 
+        FROM  (SELECT t2.daily_day                                                                    AS date, 
+                      GetTimeBand(t1.timestamp)                                                       AS timeband, 
+                      t1.channel                                                                      AS platform, 
+                      nvl(t4.geography_id, 0)                                                         AS geography_id, 
+                      t1.appversion                                                                   AS app_version, 
+                      nvl(t5.common_content_id, 0)                                                    AS common_content_id, 
+                      IF(t1.contentsubtype = 'TRAILER' AND t1.userid != t1.deviceid, t1.userid, NULL) AS logged_trailer_views, 
+                      IF(t1.contentsubtype = 'TRAILER' AND t1.userid = t1.deviceid, t1.userid, NULL)  AS anonymous_trailer_views, 
+                      t1.videosessionid                                                               AS videosessionid1, 
+                      t1.userid                                                                       AS field1 
+               FROM   target_user_action t1 
+                      LEFT OUTER JOIN dim_calendar t2 
+                                   ON ( t1.dt_reference = t2.day_identifier ) 
+                      LEFT OUTER JOIN target_profiling t3 
+                                   ON ( t1.userid = t3.userid ) 
+                      LEFT OUTER JOIN dim_geography t4 
+                                   ON ( t3.regionname = t4.continent ) 
+                                      AND ( t3.country = t4.state ) 
+                                      AND ( t3.state = t4.region ) 
+                      LEFT OUTER JOIN dim_common_catalog t5 
+                                   ON ( t1.contentid = t5.detail_content_id ) 
+               WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )) temp1 
+              LEFT OUTER JOIN (SELECT t1.videosessionid                                                                  AS videosessionid2, 
+                                      IF(t1.contentsubtype = 'TRAILER' AND t1.userid != t1.deviceid, t1.contentid, NULL) AS logged_conversion_trailer_movie, 
+                                      IF(t1.contentsubtype = 'TRAILER' AND t1.userid = t1.deviceid, t1.contentid, NULL)  AS anonymous_conversion_trailer_movie 
+                               FROM   target_user_action t1 
+                               WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
+							   ) temp2 
+                           ON ( temp1.videosessionid1 = temp2.videosessionid2 ) 
+              LEFT OUTER JOIN (SELECT IF(t6.favouritetype = 'FAVOURITECREATION', t6.user_id, NULL) AS playlists, 
+                                      IF(t6.favouritetype = 'VODSeason', t6.user_id, NULL)         AS seasons_in_playlists, 
+                                      IF(t6.favouritetype = 'VODSeries', t6.user_id, NULL)         AS episodes_in_playlists, 
+                                      t6.user_id                                                   AS field2 
+                               FROM   target_favourite t6 
+                               WHERE  t6.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
+							   ) x1 
+                           ON ( temp1.field1 = x1.field2 ) 
+              LEFT OUTER JOIN (SELECT IF(t7.userid != t7.deviceid, t7.userid, NULL) AS logged_reminders, 
+                                      IF(t7.userid = t7.deviceid, t7.userid, NULL)  AS anonymous_reminders, 
+                                      t7.userid                                     AS field3 
+                               FROM   target_reminder t7 
+                               WHERE  t7.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) ) 
+                                  AND t7.eventtype = 'REMINDERCREATION'
+                               ) x2 
+                           ON ( temp1.field1 = x2.field3 )
+		)final 
+GROUP  BY final.date, 
+          final.timeband, 
+          final.platform, 
+          final.geography_id, 
+          final.app_version, 
+          final.common_content_id;
