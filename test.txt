@@ -1,690 +1,17 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_VAR_VOD_1D.hql
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_VAR_VOD.hql
 -- Created on:    12/11/2015
--- Authors:       Stefanelli, Adriano - Fumagalli, Luca - Melchiorre, Pierpaolo
--- Purpose:       Process to calculate the VAR Vod 1D KPIs
--- -----------------------------------------------------------------------------
+-- Authors:       Stefanelli, Adriano
+-- Purpose:       Process to calculate the VAR Vod KPIs
+-------------------------------------------------------------------------------
 
--- creating a temporary table to store the 1^ subset of VOD's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D_tmp01 (     
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min STRING,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  logged_viewers_1d INT,
-  anonymous_viewers_1d INT,
-  logged_views_1d INT,
-  anonymous_views_1d INT,
-  playback_duration_min_per_logged_viewer_1d INT,
-  playback_duration_min_per_anonymous_viewer_1d INT,
-  playback_duration_min_per_logged_view_1d INT,
-  playback_duration_min_per_anonymous_view_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE  
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D_tmp01';      
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D_tmp01
--- LOGGED_VIEWERS_1D
--- ANONYMOUS_VIEWERS_1D
--- LOGGED_VIEWS_1D
--- ANONYMOUS_VIEWS_1D
--- PLAYBACK_DURATION_MIN_PER_LOGGED_VIEWER_1D
--- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEWER_1D
--- PLAYBACK_DURATION_MIN_PER_LOGGED_VIEW_1D
--- PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEW_1D
--- -----------------------------------------------------------------------------
-INSERT OVERWRITE TABLE var_vod_1D_tmp01
-SELECT 
-  vdm.content_id,
-  vdm.title,
-  vdm.genre,
-  vdm.category,
-  vdm.duration_min,
-  vdm.attribute_1,
-  vdm.attribute_2,
-  vdm.attribute_3,
-  vdm.attribute_4,
-  vdm.attribute_5,
-  vdm.attribute_6,
-  vdm.attribute_7,
-  vdm.attribute_8,
-  vdm.attribute_9,
-  vdm.attribute_10,
-  vdm.attribute_11,
-  vdm.attribute_12,
-  vdm.attribute_13,
-  vdm.attribute_14,
-  vdm.attribute_15,
-  vdm.attribute_16,
-  vdm.attribute_17,
-  vdm.attribute_18,
-  vdm.attribute_19,
-  vdm.attribute_20,
-  b.logged_viewers_1d,
-  b.anonymous_viewers_1d,
-  b.logged_views_1d,
-  b.anonymous_views_1d,
-  b.playback_duration_min_per_logged_viewer_1d,
-  b.playback_duration_min_per_anonymous_viewer_1d,
-  b.playback_duration_min_per_logged_view_1d,
-  b.playback_duration_min_per_anonymous_view_1d
-FROM var_vod_master vdm 
-LEFT OUTER JOIN (
-  SELECT
-    t4.content_id                                                       AS CONTENTID,
-    count(distinct LOGGED_VIEWERS_1D)                                   AS LOGGED_VIEWERS_1D,
-    count(distinct ANONYMOUS_VIEWERS_1D)                                AS ANONYMOUS_VIEWERS_1D,
-    sum(LOGGED_VIEWS_1D)                                                AS LOGGED_VIEWS_1D,
-    sum(ANONYMOUS_VIEWS_1D)                                             AS ANONYMOUS_VIEWS_1D, 
-    sum(t2.CONSUMPTION_LOGGED) / count(distinct LOGGED_VIEWERS_1D)      AS PLAYBACK_DURATION_MIN_PER_LOGGED_VIEWER_1D,
-    sum(t2.CONSUMPTION_ANONYMUS) / count(distinct ANONYMOUS_VIEWERS_1D) AS PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEWER_1D,
-    sum(t2.CONSUMPTION_LOGGED) / sum(LOGGED_VIEWS_1D)                   AS PLAYBACK_DURATION_MIN_PER_LOGGED_VIEW_1D,
-    sum(t2.CONSUMPTION_ANONYMUS) / sum(ANONYMOUS_VIEWS_1D)              AS PLAYBACK_DURATION_MIN_PER_ANONYMOUS_VIEW_1D
-  FROM var_vod_master t4
-  LEFT OUTER JOIN (
-    SELECT
-      t3.contentid                                                     AS CONTENTID,
-      t0.userid                                                        AS USERID,
-      t0.deviceid                                                      AS DEVICEID,
-      (if(t0.userid != t0.deviceid, round(t0.consumption /60), null))  AS CONSUMPTION_LOGGED,
-      (if(t0.userid = t0.deviceid, round( t0.consumption /60), null))  AS CONSUMPTION_ANONYMUS,
-      (if(t0.userid != t0.deviceid, t0.userid, null))                  AS LOGGED_VIEWERS_1D,
-      (if(t0.userid = t0.deviceid, t0.deviceid, null))                 AS ANONYMOUS_VIEWERS_1D,
-      (if(t0.userid != t0.deviceid,1, 0))                              AS LOGGED_VIEWS_1D,
-      (if(t0.userid = t0.deviceid, 1, 0))                              AS ANONYMOUS_VIEWS_1D
-    FROM target_watching t0 
-    JOIN target_category_map t3 ON ( t0.contentid = t3.contentid ) 
-   WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t0.dt_reference) == 1 
-     AND t0.download != "Y"
-    ) t2 ON ( t4.content_id = t2.contentid ) 
- GROUP BY 
-   t4.content_id
-) b ON ( vdm.content_id = b.contentid );
-
--- creating a temporary table to store the 2^ subset of VAR Vod's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D_tmp02 (
+-- creating table to store the VAR Vod's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_content (
   content_id STRING,
   title STRING,
   genre STRING,
   category STRING,
   duration_min DOUBLE,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  views_subsequent_details_1d DOUBLE
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D_tmp02';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D_tmp02
--- VIEWS_SUBSEQUENT_DETAILS_1D
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_vod_1D_tmp02
-SELECT 
-  vdm.content_id,
-  vdm.title,
-  vdm.genre,
-  vdm.category,
-  vdm.duration_min,
-  vdm.attribute_1,
-  vdm.attribute_2,
-  vdm.attribute_3,
-  vdm.attribute_4,
-  vdm.attribute_5,
-  vdm.attribute_6,
-  vdm.attribute_7,
-  vdm.attribute_8,
-  vdm.attribute_9,
-  vdm.attribute_10,
-  vdm.attribute_11,
-  vdm.attribute_12,
-  vdm.attribute_13,
-  vdm.attribute_14,
-  vdm.attribute_15,
-  vdm.attribute_16,
-  vdm.attribute_17,
-  vdm.attribute_18,
-  vdm.attribute_19,
-  vdm.attribute_20,
-  b.views_subsequent_details_1d
-FROM var_vod_master vdm 
-LEFT OUTER JOIN (
-  SELECT 
-    t2.content_id         AS contentid, 
-    nvl(sum(t3.loads), 0) AS views_subsequent_details_1d
-  FROM var_vod_master t2
-  LEFT OUTER JOIN (
-          SELECT 
-            temp1.contentid,
-            IF(temp1.timestamp < temp2.timestamp, 1, 0) AS loads    
-          FROM (
-               SELECT t1.sessionid, t1.userid, t1.deviceid, t1.contentid, t1.timestamp
-                 FROM target_user_action t1
-                WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t1.dt_reference) == 1
-                  AND t1.eventtype = "LOADCONTENTDETAILSPAGE"
-               ) temp1 
-          JOIN ( 
-               SELECT t2.sessionid, t2.userid, t2.deviceid, t2.contentid, t2.timestamp
-                 FROM target_user_action t2
-                WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t2.dt_reference) == 1
-                  AND t2.eventtype = "VIDEOSTART"
-               )temp2 
-            ON temp1.userid=temp2.userid
-           AND temp1.sessionid=temp2.sessionid
-           AND temp1.deviceid=temp2.deviceid
-           AND temp1.contentid=temp2.contentid          
-    ) t3 ON ( t2.content_id = t3.contentid ) 
- GROUP BY t2.content_id
-) b ON ( vdm.content_id = b.contentid );
-
--- creating a temporary table to store the 3^ subset of VAR Vod's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D_tmp03 (
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min DOUBLE,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  purchases_1d INT,
-  revenues_1d DOUBLE
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D_tmp03';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D_tmp03
--- PURCHASES_1D
--- REVENUES_1D
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_vod_1D_tmp03
-SELECT 
-  vdm.content_id,
-  vdm.title,
-  vdm.genre,
-  vdm.category,
-  vdm.duration_min,
-  vdm.attribute_1,
-  vdm.attribute_2,
-  vdm.attribute_3,
-  vdm.attribute_4,
-  vdm.attribute_5,
-  vdm.attribute_6,
-  vdm.attribute_7,
-  vdm.attribute_8,
-  vdm.attribute_9,
-  vdm.attribute_10,
-  vdm.attribute_11,
-  vdm.attribute_12,
-  vdm.attribute_13,
-  vdm.attribute_14,
-  vdm.attribute_15,
-  vdm.attribute_16,
-  vdm.attribute_17,
-  vdm.attribute_18,
-  vdm.attribute_19,
-  vdm.attribute_20,
-  b.purchases_1d,
-  b.revenues_1d
-FROM var_vod_master vdm 
-LEFT OUTER JOIN (
-  SELECT 
-    t2.content_id                 AS contentid,
-    count(t3.userid)              AS purchases_1d,
-    nvl(sum(t3.originalprice), 0) AS revenues_1d
-  FROM var_vod_master t2
-  LEFT OUTER JOIN (
-    SELECT 
-      t0.contentid     AS contentid,
-      t0.originalprice AS originalprice,
-      t0.userid        AS userid
-    FROM target_purchase t0 
-    JOIN target_category_map t1 ON (t0.contentid = t1.contentid)
-   WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t0.dt_reference) == 1
-    ) t3 ON ( t2.content_id = t3.contentid ) 
- GROUP BY 
-   t2.content_id
-) b ON ( vdm.content_id = b.contentid );
-
--- creating a temporary table to store the 4^ subset of VAR Vod's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D_tmp04 (
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min DOUBLE,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  downloads_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D_tmp04';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D_tmp04
--- DOWNLOADS_1D
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_vod_1D_tmp04
-SELECT 
-  vdm.content_id,
-  vdm.title,
-  vdm.genre,
-  vdm.category,
-  vdm.duration_min,
-  vdm.attribute_1,
-  vdm.attribute_2,
-  vdm.attribute_3,
-  vdm.attribute_4,
-  vdm.attribute_5,
-  vdm.attribute_6,
-  vdm.attribute_7,
-  vdm.attribute_8,
-  vdm.attribute_9,
-  vdm.attribute_10,
-  vdm.attribute_11,
-  vdm.attribute_12,
-  vdm.attribute_13,
-  vdm.attribute_14,
-  vdm.attribute_15,
-  vdm.attribute_16,
-  vdm.attribute_17,
-  vdm.attribute_18,
-  vdm.attribute_19,
-  vdm.attribute_20,
-  b.downloads_1d
-FROM var_vod_master vdm 
-LEFT OUTER JOIN (
-  SELECT 
-    t2.content_id    AS content_id,
-    sum(t3.download) AS downloads_1d
-  FROM var_vod_master t2
-  LEFT OUTER JOIN (
-    SELECT 
-      t0.contentid                 AS contentid,
-      IF (t0.download = "Y", 1, 0) AS download
-    FROM target_watching t0 
-    LEFT OUTER JOIN target_category_map t1 ON (t0.contentid = t1.contentid)
-   WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t0.dt_reference) == 1
-    ) t3 ON ( t2.content_id = t3.contentid ) 
- GROUP BY 
-   t2.content_id
-) b ON ( vdm.content_id = b.content_id );
-
--- creating a temporary table to store the 5^ subset of VAR Vod's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D_tmp05 (
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min DOUBLE,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  playlists_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D_tmp05';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D_tmp05
--- PLAYLISTS_1D
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_vod_1D_tmp05
-SELECT 
-  vdm.content_id,
-  vdm.title,
-  vdm.genre,
-  vdm.category,
-  vdm.duration_min,
-  vdm.attribute_1,
-  vdm.attribute_2,
-  vdm.attribute_3,
-  vdm.attribute_4,
-  vdm.attribute_5,
-  vdm.attribute_6,
-  vdm.attribute_7,
-  vdm.attribute_8,
-  vdm.attribute_9,
-  vdm.attribute_10,
-  vdm.attribute_11,
-  vdm.attribute_12,
-  vdm.attribute_13,
-  vdm.attribute_14,
-  vdm.attribute_15,
-  vdm.attribute_16,
-  vdm.attribute_17,
-  vdm.attribute_18,
-  vdm.attribute_19,
-  vdm.attribute_20,
-  b.playlist_1d
-FROM var_vod_master vdm 
-LEFT OUTER JOIN (
-  SELECT 
-    t2.content_id    AS contentid, 
-    count(t3.userid) AS playlist_1d
-  FROM var_vod_master t2
-  LEFT OUTER JOIN (
-    SELECT 
-      t0.contentid AS contentid,
-      t0.user_id   AS userid
-    FROM target_favourite t0 
-    JOIN target_category_map t1 ON (t0.contentid = t1.contentid)
-   WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t0.dt_reference) == 1
-    ) t3 ON ( t2.content_id = t3.contentid ) 
- GROUP BY 
-   t2.content_id
-) b ON ( vdm.content_id = b.contentid );
-
--- creating a temporary table to store the 6^ subset of VAR Vod's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D_tmp06 (
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min DOUBLE,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  impressions_1d INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D_tmp06';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D_tmp06
--- IMPRESSIONS_1D
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_vod_1D_tmp06
-SELECT 
-  vdm.content_id,
-  vdm.title,
-  vdm.genre,
-  vdm.category,
-  vdm.duration_min,
-  vdm.attribute_1,
-  vdm.attribute_2,
-  vdm.attribute_3,
-  vdm.attribute_4,
-  vdm.attribute_5,
-  vdm.attribute_6,
-  vdm.attribute_7,
-  vdm.attribute_8,
-  vdm.attribute_9,
-  vdm.attribute_10,
-  vdm.attribute_11,
-  vdm.attribute_12,
-  vdm.attribute_13,
-  vdm.attribute_14,
-  vdm.attribute_15,
-  vdm.attribute_16,
-  vdm.attribute_17,
-  vdm.attribute_18,
-  vdm.attribute_19,
-  vdm.attribute_20,
-  b.impressions_1d
-FROM var_vod_master vdm 
-LEFT OUTER JOIN (
-  SELECT 
-    t2.content_id    AS contentid, 
-    count(t3.userid) AS impressions_1d
-  FROM var_vod_master t2
-  LEFT OUTER JOIN (
-    SELECT 
-      t0.content_id AS contentid,
-      t0.user_id    AS userid
-    FROM target_impression t0 
-    JOIN target_category_map t1 ON (t0.content_id = t1.contentid)
-   WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t0.dt_reference) == 1
-    ) t3 ON ( t2.content_id = t3.contentid ) 
- GROUP BY 
-   t2.content_id
-) b ON ( vdm.content_id = b.contentid );
-
--- creating a temporary table to store the 7^ subset of VAR Vod's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D_tmp07 (
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min DOUBLE,
-  attribute_1 STRING,
-  attribute_2 STRING,
-  attribute_3 STRING,
-  attribute_4 STRING,
-  attribute_5 STRING,
-  attribute_6 STRING,
-  attribute_7 STRING,
-  attribute_8 STRING,
-  attribute_9 STRING,
-  attribute_10 STRING,
-  attribute_11 STRING,
-  attribute_12 STRING,
-  attribute_13 STRING,
-  attribute_14 STRING,
-  attribute_15 STRING,
-  attribute_16 STRING,
-  attribute_17 STRING,
-  attribute_18 STRING,
-  attribute_19 STRING,
-  attribute_20 STRING,
-  likes_1d INT,
-  dislikes_1d INT,
-  ratings_1d INT,
-  avg_rating_value_1d DOUBLE
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D_tmp07';
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D_tmp07
--- LIKES_1D
--- DISLIKES_1D
--- RATINGS_1D
--- AVG_RATING_VALUE_1D
--- -----------------------------------------------------------------------------
-
-INSERT OVERWRITE TABLE var_vod_1D_tmp07
-SELECT 
-  vdm.content_id,
-  vdm.title,
-  vdm.genre,
-  vdm.category,
-  vdm.duration_min,
-  vdm.attribute_1,
-  vdm.attribute_2,
-  vdm.attribute_3,
-  vdm.attribute_4,
-  vdm.attribute_5,
-  vdm.attribute_6,
-  vdm.attribute_7,
-  vdm.attribute_8,
-  vdm.attribute_9,
-  vdm.attribute_10,
-  vdm.attribute_11,
-  vdm.attribute_12,
-  vdm.attribute_13,
-  vdm.attribute_14,
-  vdm.attribute_15,
-  vdm.attribute_16,
-  vdm.attribute_17,
-  vdm.attribute_18,
-  vdm.attribute_19,
-  vdm.attribute_20,
-  b.likes_1d,
-  b.dislikes_1d,
-  b.ratings_1d,
-  b.avg_rating_value_1d
-FROM var_vod_master vdm 
-LEFT OUTER JOIN (
-  SELECT 
-    t2.content_id, 
-    nvl(sum(t3.is_liked), 0)                         AS likes_1d,
-    nvl(sum(t3.is_disliked), 0)                      AS dislikes_1d,
-    nvl(sum(t3.rating), 0)                           AS ratings_1d,
-    round(sum(t3.avg_rating)/count(t2.content_id),2) AS avg_rating_value_1d
-  FROM var_vod_master t2
-  LEFT OUTER JOIN (
-    SELECT 
-      t0.content_id                                 AS contentid,
-      IF (t0.is_liked = "Y", 1, 0)                  AS is_liked,
-      IF (t0.is_disliked = "Y", 1,0)                AS is_disliked,
-      IF (t0.rating in ("1","2","3","4","5"), 0, 1) AS rating,
-      t0.rating                                     AS avg_rating
-    FROM target_curation t0 
-    LEFT OUTER JOIN target_category_map t1 ON (t0.content_id = t1.contentid)
-   WHERE datediff(date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 0), t0.dt_reference) == 1
-    ) t3 ON ( t2.content_id = t3.contentid ) 
- GROUP BY 
-   t2.content_id
-) b ON ( vdm.content_id = b.content_id );
-
--- -----------------------------------------------------------------------------
--- Temporary table name: var_vod_1D
--- JOIN ALL TEMPORARY TABLES
--- -----------------------------------------------------------------------------
-
-CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D (
-  content_id STRING,
-  title STRING,
-  genre STRING,
-  category STRING,
-  duration_min STRING,
   attribute_1 STRING,
   attribute_2 STRING,
   attribute_3 STRING,
@@ -722,30 +49,164 @@ CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_1D (
   likes_1d INT,
   dislikes_1d INT,
   ratings_1d INT,
-  avg_rating_value_1d INT
+  avg_rating_value_1d INT,
+  logged_viewers_7d INT,
+  anonymous_viewers_7d INT,
+  logged_views_7d INT,
+  anonymous_views_7d INT,
+  playback_duration_min_per_logged_viewer_7d DOUBLE,
+  playback_duration_min_per_anonymous_viewer_7d DOUBLE,
+  playback_duration_min_per_logged_view_7d DOUBLE,
+  playback_duration_min_per_anonymous_view_7d DOUBLE,
+  views_subsequent_details_7d INT,
+  purchases_7d INT,
+  revenues_7d double,
+  downloads_7d INT,
+  playlists_7d INT,
+  impressions_7d INT,
+  likes_7d INT,
+  dislikes_7d INT,
+  ratings_7d INT,
+  avg_rating_value_7d INT,
+  logged_viewers_30d INT,
+  anonymous_viewers_30d INT,
+  logged_views_30d INT,
+  anonymous_views_30d INT,
+  playback_duration_min_per_logged_viewer_30d DOUBLE,
+  playback_duration_min_per_anonymous_viewer_30d DOUBLE,
+  playback_duration_min_per_logged_view_30d DOUBLE,
+  playback_duration_min_per_anonymous_view_30d DOUBLE,
+  views_subsequent_details_30d INT,
+  purchases_30d INT,
+  revenues_30d double,
+  downloads_30d INT,
+  playlists_30d INT,
+  impressions_30d INT,
+  likes_30d INT,
+  dislikes_30d INT,
+  ratings_30d INT,
+  avg_rating_value_30d INT,
+  logged_viewers_60d INT,
+  anonymous_viewers_60d INT,
+  logged_views_60d INT,
+  anonymous_views_60d INT,
+  playback_duration_min_per_logged_viewer_60d DOUBLE,
+  playback_duration_min_per_anonymous_viewer_60d DOUBLE,
+  playback_duration_min_per_logged_view_60d DOUBLE,
+  playback_duration_min_per_anonymous_view_60d DOUBLE,
+  views_subsequent_details_60d INT,
+  purchases_60d INT,
+  revenues_60d double,
+  downloads_60d INT,
+  playlists_60d INT,
+  impressions_60d INT,
+  likes_60d INT,
+  dislikes_60d INT,
+  ratings_60d INT,
+  avg_rating_value_60d INT,
+  logged_viewers_90d INT,
+  anonymous_viewers_90d INT,
+  logged_views_90d INT,
+  anonymous_views_90d INT,
+  playback_duration_min_per_logged_viewer_90d DOUBLE,
+  playback_duration_min_per_anonymous_viewer_90d DOUBLE,
+  playback_duration_min_per_logged_view_90d DOUBLE,
+  playback_duration_min_per_anonymous_view_90d DOUBLE,
+  views_subsequent_details_90d INT,
+  purchases_90d INT,
+  revenues_90d double,
+  downloads_90d INT,
+  playlists_90d INT,
+  impressions_90d INT,
+  likes_90d INT,
+  dislikes_90d INT,
+  ratings_90d INT,
+  avg_rating_value_90d INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/VAR_VOD/var_vod_1D';
+LOCATION '${hivevar:root_path}/agg/VAR_VOD/output';
 
-INSERT OVERWRITE TABLE var_vod_1D
-SELECT t1.*, 
-       t2.views_subsequent_details_1d, 
-       t3.purchases_1d,
-       t3.revenues_1d,
-       t4.downloads_1d,
-       t5.playlists_1d,
-       t6.impressions_1d,
-       t7.likes_1d,
-       t7.dislikes_1d,
-       t7.ratings_1d,
-       t7.avg_rating_value_1d
-FROM var_vod_1D_tmp01 t1
-JOIN var_vod_1D_tmp02 t2 ON t1.content_id = t2.content_id
-JOIN var_vod_1D_tmp03 t3 ON t1.content_id = t3.content_id
-JOIN var_vod_1D_tmp04 t4 ON t1.content_id = t4.content_id
-JOIN var_vod_1D_tmp05 t5 ON t1.content_id = t5.content_id
-JOIN var_vod_1D_tmp06 t6 ON t1.content_id = t6.content_id
-JOIN var_vod_1D_tmp07 t7 ON t1.content_id = t7.content_id;
+-- inserting data into var_vod_content table
+INSERT OVERWRITE TABLE var_vod_content
+SELECT
+  t1.*, 
+  t2.logged_viewers_7d,
+  t2.anonymous_viewers_7d,
+  t2.logged_views_7d,
+  t2.anonymous_views_7d,
+  t2.playback_duration_min_per_logged_viewer_7d,
+  t2.playback_duration_min_per_anonymous_viewer_7d,
+  t2.playback_duration_min_per_logged_view_7d,
+  t2.playback_duration_min_per_anonymous_view_7d,
+  t2.views_subsequent_details_7d,
+  t2.purchases_7d,
+  t2.revenues_7d,
+  t2.downloads_7d,
+  t2.playlists_7d,
+  t2.impressions_7d,
+  t2.likes_7d,
+  t2.dislikes_7d,
+  t2.ratings_7d,
+  t2.avg_rating_value_7d,
+  t3.logged_viewers_30d,
+  t3.anonymous_viewers_30d,
+  t3.logged_views_30d,
+  t3.anonymous_views_30d,
+  t3.playback_duration_min_per_logged_viewer_30d,
+  t3.playback_duration_min_per_anonymous_viewer_30d,
+  t3.playback_duration_min_per_logged_view_30d,
+  t3.playback_duration_min_per_anonymous_view_30d,
+  t3.views_subsequent_details_30d,
+  t3.purchases_30d,
+  t3.revenues_30d,
+  t3.downloads_30d,
+  t3.playlists_30d,
+  t3.impressions_30d,
+  t3.likes_30d,
+  t3.dislikes_30d,
+  t3.ratings_30d,
+  t3.avg_rating_value_30d,
+  t4.logged_viewers_60d,
+  t4.anonymous_viewers_60d,
+  t4.logged_views_60d,
+  t4.anonymous_views_60d,
+  t4.playback_duration_min_per_logged_viewer_60d,
+  t4.playback_duration_min_per_anonymous_viewer_60d,
+  t4.playback_duration_min_per_logged_view_60d,
+  t4.playback_duration_min_per_anonymous_view_60d,
+  t4.views_subsequent_details_60d,
+  t4.purchases_60d,
+  t4.revenues_60d,
+  t4.downloads_60d,
+  t4.playlists_60d,
+  t4.impressions_60d,
+  t4.likes_60d,
+  t4.dislikes_60d,
+  t4.ratings_60d,
+  t4.avg_rating_value_60d,
+  t5.logged_viewers_90d,
+  t5.anonymous_viewers_90d,
+  t5.logged_views_90d,
+  t5.anonymous_views_90d,
+  t5.playback_duration_min_per_logged_viewer_90d,
+  t5.playback_duration_min_per_anonymous_viewer_90d,
+  t5.playback_duration_min_per_logged_view_90d,
+  t5.playback_duration_min_per_anonymous_view_90d,
+  t5.views_subsequent_details_90d,
+  t5.purchases_90d,
+  t5.revenues_90d,
+  t5.downloads_90d,
+  t5.playlists_90d,
+  t5.impressions_90d,
+  t5.likes_90d,
+  t5.dislikes_90d,
+  t5.ratings_90d,
+  t5.avg_rating_value_90d
+FROM var_vod_1D t1
+JOIN var_vod_7D t2 ON t1.content_id = t2.content_id
+JOIN var_vod_30D t3 ON t1.content_id = t3.content_id
+JOIN var_vod_60D t4 ON t1.content_id = t4.content_id
+JOIN var_vod_90D t5 ON t1.content_id = t5.content_id;
