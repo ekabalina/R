@@ -1,348 +1,148 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Loyalty_Weekly_by_Platform.hql
--- Created on:    19/11/2015
--- Author:        Calabrese, A.
--- Purpose:       Process to calculate the Loyalty by Platform Aggregate (Weekly) table
--- -----------------------------------------------------------------------------
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_nPVR.hql
+-- Created on:    05/11/2015
+-- Author:        Venkateswarlu, U.
+-- Purpose:       Process to calculate the nPVR Aggregate table
+-------------------------------------------------------------------------------
 
-delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
-add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
-drop temporary function Week_c_top;
-drop temporary function Week_1p_bottom_filling;
-drop temporary function Week_1p_top;
-drop temporary function Week_2p_bottom_filling;
-drop temporary function Week_2p_top;
-drop temporary function Week_3p_bottom_filling;
-drop temporary function Week_3p_top;
-drop temporary function Week_4p_bottom_filling;
-drop temporary function Week_4p_top;
-drop temporary function Week_5p_bottom_filling;
-create temporary function Week_c_top as 'com.accenture.AVSA.hive.UDF.Week_c_top';
-create temporary function Week_1p_bottom_filling as 'com.accenture.AVSA.hive.UDF.Week_1p_bottom_filling';
-create temporary function Week_1p_top as 'com.accenture.AVSA.hive.UDF.Week_1p_top';
-create temporary function Week_2p_bottom_filling as 'com.accenture.AVSA.hive.UDF.Week_2p_bottom_filling';
-create temporary function Week_2p_top as 'com.accenture.AVSA.hive.UDF.Week_2p_top';
-create temporary function Week_3p_bottom_filling as 'com.accenture.AVSA.hive.UDF.Week_3p_bottom_filling';
-create temporary function Week_3p_top as 'com.accenture.AVSA.hive.UDF.Week_3p_top';
-create temporary function Week_4p_bottom_filling as 'com.accenture.AVSA.hive.UDF.Week_4p_bottom_filling';
-create temporary function Week_4p_top as 'com.accenture.AVSA.hive.UDF.Week_4p_top';
-create temporary function Week_5p_bottom_filling as 'com.accenture.AVSA.hive.UDF.Week_5p_bottom_filling';
+drop temporary function GetTimeBand;
+create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
 
--- creating a temporary table to store the 1^ subset of Loyalty's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_weekly_by_platform_tmp1 (
+-- creating a creating table to store the nPVR's KPIs
+CREATE EXTERNAL TABLE IF NOT EXISTS agg_npvr (
   context STRING,
   date STRING,
-  geography_id STRING,
+  timeband STRING,
   platform STRING,
-  loyal_logged_users INT,
-  reconnected_logged_users INT,
-  loyal_anonymous_users INT,
-  reconnected_anonymous_users INT
+  geography_id STRING,
+  device_type STRING,
+  status STRING,
+  npvr_channel STRING,
+  npvr_show STRING,
+  play_latency STRING,
+  deletion_latency STRING,
+  npvr_requests INT,  
+  npvr_views INT,  
+  npvr_duration_min DOUBLE,  
+  npvr_deletions INT,  
+  max_concurrency_time_peak STRING,  
+  max_npvr_concurrency INT
 )
 ROW FORMAT
 DELIMITED FIELDS TERMINATED BY '\073'
 LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_weekly_by_platform_tmp1';
+LOCATION '${hivevar:root_path}/agg/NPVR/output';
 
--- inserting data into table agg_loyalty_weekly_by_platform_tmp1
-INSERT OVERWRITE TABLE agg_loyalty_weekly_by_platform_tmp1
-SELECT *
-FROM (
-SELECT
-    final.CONTEXT,
-    final.DATE,
-    final.GEOGRAPHY_ID,
-	final.PLATFORM,
-    COUNT(DISTINCT(final.LOYAL_LOGGED_USERS)) as LOYAL_LOGGED_USERS,
-    COUNT(DISTINCT(final.RECONNECTED_LOGGED_USERS)) as RECONNECTED_LOGGED_USERS,
-    COUNT(DISTINCT(final.LOYAL_ANONYMOUS_USERS)) as LOYAL_ANONYMOUS_USERS,
-    COUNT(DISTINCT(final.RECONNECTED_ANONYMOUS_USERS)) as RECONNECTED_ANONYMOUS_USERS
-FROM (
-SELECT 
-    "Weekly Loyalty by Platform" AS CONTEXT,
-    to_date(cal.weekly_day) AS DATE,
-    nvl(geo.geography_id, 0) AS GEOGRAPHY_ID,
-	watch10.CHANNEL1 as PLATFORM,
-    (if(watch10.USERID2 != watch10.DEVICEID2, watch10.USERID2, null)) AS LOYAL_LOGGED_USERS,
-    (if(watch11.USERID5 != watch11.DEVICEID5, watch11.USERID5, null)) AS RECONNECTED_LOGGED_USERS,
-    (if(watch10.USERID2 = watch10.DEVICEID2, watch10.DEVICEID2, null)) AS LOYAL_ANONYMOUS_USERS,
-    (if(watch11.USERID5 = watch11.DEVICEID5, watch11.DEVICEID5, null)) AS RECONNECTED_ANONYMOUS_USERS
-    FROM
-(select * from
-(select userid as USERID1, deviceid as DEVICEID1, dt_reference as DT_REFERENCE1, channel as CHANNEL1 from target_watching) watch1
-left outer join
-(SELECT watch3.USERID as USERID2, watch3.DEVICEID as DEVICEID2
-  FROM target_watching watch3, target_watching watch4
-WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch3.DT_REFERENCE) >= 1
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch3.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch3.DOWNLOAD != "Y"
-     AND DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch4.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch4.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch4.DOWNLOAD != "Y"
-     AND watch3.USERID = watch4.USERID) watch2
-     on (watch1.userid1 = watch2.userid2)) watch10
-left outer join (select * from (
-select * from (
-select * from (
-select * from (
-SELECT watch5.USERID as USERID5, watch5.DEVICEID as DEVICEID5
-from target_watching watch5
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) >= 1
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch5.DOWNLOAD != "Y") t5
-     left outer join
-(SELECT watch6.USERID as USERID6
-from target_watching watch6
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch6.DOWNLOAD != "Y") t6
-     on t5.userid5 = t6.userid6) temp1
-     left outer join
-(SELECT watch7.USERID as USERID7
-from target_watching watch7
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch7.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_2p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch7.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_2p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch7.DOWNLOAD != "Y") t7
-     on temp1.userid5 = t7.userid7) watch8
-where USERID5 is not null
-and USERID6 is null
-and USERID7 is not null) watch9) watch11
-on watch10.userid1 = watch11.userid5
-JOIN dim_calendar cal
-    on (watch10.dt_reference1 = cal.day_identifier)
-left outer JOIN target_profiling t5
-    on (watch10.USERID1 = t5.USERID)
-left outer JOIN dim_geography geo
-    on (t5.REGIONNAME = geo.CONTINENT) AND
-        (t5.COUNTRY = geo.STATE) AND
-        (t5.STATE = geo.REGION)
-        WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch10.DT_REFERENCE1) >= 1
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch10.DT_REFERENCE1) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-        AND (watch10.userid1 not in (select t8.userid from target_customer_base_watching t8))) final 
-group by final.context, final.date, final.GEOGRAPHY_ID, final.PLATFORM) c;
-
--- creating a temporary table to store the 2^ subset of Loyalty's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_weekly_by_platform_tmp2 (
-  context STRING,
-  date STRING,
-  geography_id STRING,
-  platform STRING,
-  lost_logged_users INT,
-  lost_anonymous_users INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_weekly_by_platform_tmp2';
-
--- inserting data into table agg_loyalty_weekly_by_platform_tmp2
-INSERT OVERWRITE TABLE agg_loyalty_weekly_by_platform_tmp2
-SELECT *
-FROM (
-SELECT
-    final.CONTEXT,
-    final.DATE,
-    final.GEOGRAPHY_ID,
-	final.PLATFORM,
-    COUNT(DISTINCT(final.LOST_LOGGED_USERS)) as LOST_LOGGED_USERS,
-    COUNT(DISTINCT(final.LOST_ANONYMOUS_USERS)) as LOST_ANONYMOUS_USERS
-FROM (
-SELECT 
-    "Weekly Loyalty by Platform" AS CONTEXT,
-    to_date(cal.weekly_day) AS DATE,
-    Nvl(geo.geography_id, 0) AS GEOGRAPHY_ID,
-	watch1.CHANNEL5 as PLATFORM,
-    (if(watch1.USERID5 != watch1.DEVICEID5, watch1.USERID5, null)) AS LOST_LOGGED_USERS,
-    (if(watch1.USERID5 = watch1.DEVICEID5, watch1.USERID5, null)) AS LOST_ANONYMOUS_USERS
-    FROM
-(select * from (
-select * from (
-select * from (
-select * from (
-SELECT watch5.USERID as USERID5, watch5.deviceid as DEVICEID5, (date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)) as DT_REFERENCE5, watch5.channel as CHANNEL5
-from target_watching watch5
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_2p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_2p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch5.DOWNLOAD != "Y") t5
-     left outer join
-(SELECT watch6.USERID as USERID6
-from target_watching watch6
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch6.DOWNLOAD != "Y") t6
-     on t5.userid5 = t6.userid6) temp1
-     left outer join
-(SELECT watch7.USERID as USERID7
-from target_watching watch7
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch7.DT_REFERENCE) >= 1
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch7.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     AND watch7.DOWNLOAD != "Y") t7
-     on temp1.userid5 = t7.userid7) watch8
-where USERID5 is not null
-and USERID6 is null
-and USERID7 is null) watch9) watch1
-JOIN dim_calendar cal
-    on (watch1.dt_reference5 = cal.day_identifier)
-left outer JOIN target_profiling t5
-    on (watch1.USERID5 = t5.USERID)
-left outer JOIN dim_geography geo
-    on (t5.REGIONNAME = geo.CONTINENT) AND
-        (t5.COUNTRY = geo.STATE) AND
-        (t5.STATE = geo.REGION)) final 
-group by final.context, final.date, final.GEOGRAPHY_ID, final.PLATFORM) c;
-
--- creating a temporary table to store the 3^ subset of Loyalty's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_weekly_by_platform_tmp3 (
-  context STRING,
-  date STRING,
-  geography_id STRING,
-  platform STRING,
-  LAST_VIEW_PERIOD_3 INT,
-  LAST_VIEW_PERIOD_4 INT,
-  LAST_VIEW_PERIOD_MIN_4 INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_weekly_by_platform_tmp3';
-
--- inserting data into table agg_loyalty_weekly_by_platform_tmp3
-INSERT OVERWRITE TABLE agg_loyalty_weekly_by_platform_tmp3
-SELECT *
-FROM (
-SELECT
-    final.CONTEXT,
-    final.DATE,
-    final.GEOGRAPHY_ID,
-	final.PLATFORM,
-    COUNT(DISTINCT(final.LAST_VIEW_PERIOD_3)) as LAST_VIEW_PERIOD_3,
-    COUNT(DISTINCT(final.LAST_VIEW_PERIOD_4)) as LAST_VIEW_PERIOD_4,
-    COUNT(DISTINCT(final.LAST_VIEW_PERIOD_MIN_4)) as LAST_VIEW_PERIOD_MIN_4
-FROM (
-SELECT 
-    "Weekly Loyalty by Platform" AS CONTEXT,
-    to_date(cal.weekly_day) AS DATE,
-    nvl(geo.geography_id, 0) AS GEOGRAPHY_ID,
-	watch10.CHANNEL1 as PLATFORM,
-    (if(watch10.USERID1 is not null and watch10.USERID2 is null and watch10.USERID3 is null and watch10.USERID4 is not null, watch10.USERID1, null)) AS LAST_VIEW_PERIOD_3,
-    (if(watch10.USERID1 is not null and watch10.USERID2 is null and watch10.USERID3 is null and watch10.USERID4 is null and watch10.USERID5 is not null, watch10.USERID1, null)) AS LAST_VIEW_PERIOD_4,
-    (if(watch10.USERID1 is not null and watch10.USERID2 is null and watch10.USERID3 is null and watch10.USERID4 is null and watch10.USERID5 is null and watch10.USERID6 is not null, watch10.USERID1, null)) AS LAST_VIEW_PERIOD_MIN_4
-    FROM (
-select * from (
-select * from (
-select * from (
-select * from (
-select * from (
-SELECT watch1.USERID as USERID1, watch1.DT_REFERENCE as DT_REFERENCE1, watch1.channel as CHANNEL1
-from target_watching watch1
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch1.DT_REFERENCE) >= 1
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch1.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))) t1
-     left outer join
-(SELECT watch2.USERID as USERID2
-from target_watching watch2
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch2.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-     and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch2.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_1p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))) t2
-     on t1.userid1 = t2.userid2) temp1
-     left outer join
-(SELECT watch3.USERID as USERID3
-from target_watching watch3
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch3.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_2p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch3.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_2p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))) t3
-     on temp1.userid1 = t3.userid3) temp2
-      left outer join
-(SELECT watch4.USERID as USERID4
-from target_watching watch4
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch4.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_3p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch4.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_3p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))) t4
-     on temp2.userid1 = t4.userid4) temp3
-      left outer join
-(SELECT watch5.USERID as USERID5
-from target_watching watch5
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_4p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch5.DT_REFERENCE) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_4p_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))) t5
-     on temp3.userid1 = t5.userid5) temp4
-      left outer join
-(SELECT watch6.USERID as USERID6
-from target_watching watch6
-where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch6.DT_REFERENCE) >= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_5p_bottom_filling(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))) t6
-     on temp4.userid1 = t6.userid6) watch10
-JOIN dim_calendar cal
-    on (watch10.dt_reference1 = cal.day_identifier)
-left outer JOIN target_profiling prof
-    on (watch10.USERID1 = prof.USERID)
-left outer JOIN dim_geography geo
-    on (prof.REGIONNAME = geo.CONTINENT) AND
-        (prof.COUNTRY = geo.STATE) AND
-        (prof.STATE = geo.REGION)
-        WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch10.DT_REFERENCE1) >= 1
-and DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), watch10.DT_REFERENCE1) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Week_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1)))) final 
-group by final.context, final.date, final.GEOGRAPHY_ID, final.PLATFORM) c;
-
--- creating the final weekly table to store the previous subsets of Loyalty's KPIs 
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_weekly_by_platform (
-  context STRING,
-  date STRING,
-  geography_id STRING,
-  platform STRING,
-  loyal_logged_users INT,
-  reconnected_logged_users INT,
-  lost_logged_users INT,
-  loyal_anonymous_users INT,
-  reconnected_anonymous_users INT,
-  lost_anonymous_user INT,
-  LAST_VIEW_PERIOD_3 INT,
-  LAST_VIEW_PERIOD_4 INT,
-  LAST_VIEW_PERIOD_MIN_4 INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/LOYALTY/agg_loyalty_weekly_by_platform';
-
--- inserting data into table agg_loyalty_weekly_by_platform
-INSERT OVERWRITE TABLE agg_loyalty_weekly_by_platform
-SELECT *
-FROM (
-SELECT
-    nvl(j1.CONTEXT, tmp3.CONTEXT) as CONTEXT,
-    nvl(j1.DATE, tmp3.DATE) as DATE,
-    nvl(j1.GEOGRAPHY_ID, tmp3.GEOGRAPHY_ID) as GEOGRAPHY_ID,
-	nvl(j1.PLATFORM, tmp3.PLATFORM) as PLATFORM,
-    nvl(j1.loyal_logged_users, 0) as loyal_logged_users,
-    nvl(j1.reconnected_logged_users, 0) as reconnected_logged_users,
-    nvl(j1.lost_logged_users, 0) as lost_logged_users,
-    nvl(j1.loyal_anonymous_users, 0) as loyal_anonymous_users,
-    nvl(j1.reconnected_anonymous_users, 0) as reconnected_anonymous_users,
-    nvl(j1.lost_anonymous_users, 0) as lost_anonymous_users,
-	nvl(tmp3.LAST_VIEW_PERIOD_3, 0) as LAST_VIEW_PERIOD_3,
-	nvl(tmp3.LAST_VIEW_PERIOD_4, 0) as LAST_VIEW_PERIOD_4,
-	nvl(tmp3.LAST_VIEW_PERIOD_MIN_4, 0) as LAST_VIEW_PERIOD_MIN_4
-FROM (
-SELECT
-    nvl(tmp1.CONTEXT, tmp2.CONTEXT) as CONTEXT,
-    nvl(tmp1.DATE, tmp2.DATE) as DATE,
-    nvl(tmp1.GEOGRAPHY_ID, tmp2.GEOGRAPHY_ID) as GEOGRAPHY_ID,
-	nvl(tmp1.PLATFORM, tmp2.PLATFORM) as PLATFORM,
-    nvl(tmp1.loyal_logged_users, 0) as loyal_logged_users,
-    nvl(tmp1.reconnected_logged_users, 0) as reconnected_logged_users,
-    nvl(tmp2.lost_logged_users, 0) as lost_logged_users,
-    nvl(tmp1.loyal_anonymous_users, 0) as loyal_anonymous_users,
-    nvl(tmp1.reconnected_anonymous_users, 0) as reconnected_anonymous_users,
-    nvl(tmp2.lost_anonymous_users, 0) as lost_anonymous_users
-from
-agg_loyalty_weekly_by_platform_tmp1 tmp1
-full outer join
-agg_loyalty_weekly_by_platform_tmp2 tmp2
-on (tmp1.CONTEXT = tmp2.CONTEXT) and (tmp1.DATE = tmp2.DATE) and (tmp1.GEOGRAPHY_ID = tmp2.GEOGRAPHY_ID) and (tmp1.PLATFORM = tmp2.PLATFORM)) j1
-full outer join
-agg_loyalty_weekly_by_platform_tmp3 tmp3
-on (j1.CONTEXT = tmp3.CONTEXT) and (j1.DATE = tmp3.DATE) and (j1.GEOGRAPHY_ID = tmp3.GEOGRAPHY_ID) and (j1.PLATFORM = tmp3.PLATFORM)) j2;
-
-drop table agg_loyalty_weekly_by_platform_tmp1;
-drop table agg_loyalty_weekly_by_platform_tmp2;
-drop table agg_loyalty_weekly_by_platform_tmp3;
+-- inserting data into table agg_npvr
+INSERT OVERWRITE TABLE agg_npvr
+SELECT  final.context as context,
+        final.date as date,
+        final.timeband as timeband, 
+        final.platform as platform,
+        final.GEOGRAPHY_ID as GEOGRAPHY_ID,
+        final.device_type as device_type,
+        ""                  as status,
+        final.npvr_channel as npvr_channel,
+        final.npvr_show as npvr_show,
+        (if(1 == 2, 1, null)) as play_latency,
+        (if(1 == 2, 1, null)) as deletion_latency,
+        (if(1 == 2, 1, null)) as npvr_requests,
+        count(final.user_id) as npvr_views,
+        sum(final.NPVR_DURATION_MIN) as npvr_duration_min,
+        (if(1 == 2, 1, null)) AS npvr_deletions,  
+        final.max_concurrency_time_peak as max_concurrency_time_peak,
+        final.max_npvr_concurrency as max_npvr_concurrency
+    from (select  nvl(temp1.context, temp2.context)            AS context,
+            nvl(temp1.date, temp2.date)                        AS date,
+            nvl(temp1.timeband, temp2.timeband)                AS timeband,
+            nvl(temp1.platform, temp2.platform)                AS platform,
+            nvl(temp1.device_type, temp2.device_type)          AS device_type,
+            nvl(temp1.npvr_channel, temp2.npvr_channel)        AS npvr_channel,
+            nvl(temp1.npvr_show, temp2.npvr_show)              AS npvr_show,
+            temp1.npvr_duration_min                            AS npvr_duration_min,
+            temp2.max_concurrency_time_peak                    AS max_concurrency_time_peak,
+            temp2.max_npvr_concurrency                         AS max_npvr_concurrency,
+            temp1.user_id                                      AS user_id,
+            temp1.GEOGRAPHY_ID as GEOGRAPHY_ID
+        from (select   'nPVR'                     AS context,
+                t2.daily_day                      AS date,
+                GetTimeBand(t1.timestamp)         AS timeband,
+                t1.epg_channel                    AS platform,
+                t1.device_type                    AS device_type,
+                t1.channel                        AS npvr_channel,
+                t1.epg_show                       AS npvr_show,
+                t1.user_id                        AS user_id,
+                nvl(t5.geography_id, 0)           AS GEOGRAPHY_ID,
+                DATEDIFF(to_date(t1.timestamp), to_date(t3.timestamp)) as npvr_duration_min
+                  FROM target_npvr t1
+                LEFT OUTER JOIN dim_calendar t2
+                     ON t1.dt_reference = t2.day_identifier
+                LEFT OUTER JOIN target_npvr t3 
+                    ON t1.user_id = t3.user_id AND t1.session_id = t3.session_id
+                ----    
+                LEFT OUTER JOIN target_profiling t6
+                      ON ( t1.user_id = t6.userid )
+                LEFT OUTER JOIN dim_geography t5
+                        ON ( t6.regionname = t5.continent )
+                        AND ( t6.country = t5.state )
+                         AND ( t6.state = t5.region )                     
+                -----                  
+                 WHERE (t1.recording_action = 'PLAY') 
+                         AND (t1.dt_reference = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1)))
+                         AND (t3.recording_action = "STOP")                                   
+            ) temp1
+    FULL OUTER JOIN(
+                 select
+                  'nPVR' as context,
+                  x3.date as date,
+                  x3.timeband as timeband,
+                  x3.platform as platform,
+                  x3.device_type as device_type,
+                  x3.npvr_channel as npvr_channel,
+                  x3.npvr_show as npvr_show,
+                  x3.minute as max_concurrency_time_peak,
+                  x3.num as max_npvr_concurrency
+                from( select x2.*,t2.daily_day as date
+                  from (select
+                           A.minute as minute,
+                           A.num as num,
+                           GetTimeBand(B.timestamp) as timeband,
+                           B.epg_channel as platform,
+                           B.device_type as device_type,
+                           B.channel as npvr_channel,
+                           B.dt_reference as dt_reference,
+                           B.epg_show  as npvr_show
+                    FROM(
+                        SELECT
+                            concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp)) as minute,
+                            count(t1.USER_ID) as num
+                        FROM target_npvr t1
+                        WHERE t1.DT_REFERENCE = (DATE_SUB(from_unixtime(unix_timestamp(),'yyyy-MM-dd'),1))
+                        GROUP BY concat(to_date(t1.timestamp),' ',hour(t1.timestamp),':',minute(t1.timestamp))
+                        SORT BY num desc
+                        LIMIT 1) A
+                    LEFT JOIN target_npvr B ON A.minute=concat(to_date(B.timestamp),' ',hour(B.timestamp),':',minute(B.timestamp))
+                    )x2
+                LEFT OUTER JOIN dim_calendar t2 on x2.dt_reference = t2.day_identifier) x3 
+                ) temp2 ON (temp1.context = temp2.context)
+                       AND (temp2.date = temp1.date) 
+                       AND (temp1.timeband = temp2.timeband) 
+                       AND (temp1.platform  = temp2.platform) 
+                       AND (temp1.device_type = temp2.device_type) 
+                       AND (temp1.npvr_channel = temp2.npvr_channel) 
+                       AND (temp1.npvr_show = temp2.npvr_show)
+                 ) final
+            GROUP BY    final.context,
+                        final.date,
+                        final.timeband,
+                        final.platform,
+                        final.GEOGRAPHY_ID,
+                        final.device_type,
+                        final.npvr_channel,
+                        final.npvr_show,
+                        final.max_concurrency_time_peak,
+                        final.max_npvr_concurrency;
