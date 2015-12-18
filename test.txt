@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Loyalty_by_Platform.hql
 -- Created on:    19/11/2015
 -- Author:        Calabrese, A.
 -- Purpose:       Process to calculate the Loyalty by Platform Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- inserting data into agg_loyalty table from agg_loyalty_daily_by_platform
 INSERT INTO TABLE agg_loyalty
