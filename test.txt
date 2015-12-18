@@ -1,13 +1,19 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Purchases_Daily.hql
--- Created on:    04/11/2015
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Purchases_Monthly.hql
+-- Created on:    06/11/2015
 -- Author:        Geetha Nair, Parvathy
--- Purpose:       Process to calculate the Purchases Aggregate (Daily) table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Purchases Aggregate (Monthly) table
+-------------------------------------------------------------------------------
+
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+
+drop temporary function Month_c_top;
+create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
 
 -- inserting data into table agg_purcahses
 INSERT INTO TABLE agg_purchases
-SELECT "Daily Purchases"                 AS CONTEXT, 
+SELECT "Monthly Purchases"               AS CONTEXT, 
        z1.date0                          AS DATE, 
        ""                                AS PLATFORM, 
        z1.geography_id0                  AS GEOGRAPHY_ID, 
@@ -18,14 +24,14 @@ SELECT "Daily Purchases"                 AS CONTEXT,
        ( IF(1 == 2, 1, NULL) )           AS PURCHASES, 
        ( IF(1 == 2, 1, NULL) )           AS REVENUES, 
        z1.users0                         AS USERS, 
-       z2.new_users2                     AS NEW_USERS, 
+       ( IF(1 == 2, 1, NULL) )           AS NEW_USERS, 
        ( IF(1 == 2, 1, NULL) )           AS VIEWS_PURCHASED_CONTENTS, 
        z1.users_view_purchased_contents0 AS USERS_VIEW_PURCHASED_CONTENTS 
 FROM   (SELECT temp1.date1                     AS date0, 
                temp1.geography_id1             AS geography_id0, 
                count(DISTINCT( temp1.users1 )) AS users0, 
                count(temp2.users2)             AS users_view_purchased_contents0,
-               temp1.currency1                 AS currency0
+               temp1.currency1                 AS currency0               
         FROM   (SELECT DISTINCT( concat(t1.userid, t1.contentid) ) AS field1, 
                                t2.daily_day                        AS date1, 
                                nvl(t4.geography_id, 0)             AS geography_id1, 
@@ -42,10 +48,11 @@ FROM   (SELECT temp1.date1                     AS date0,
                                        AND ( t3.state = t4.region ) 
                        LEFT OUTER JOIN dim_common_catalog t5 
                                     ON ( t1.contentid = t5.detail_content_id ) 
-                WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp (), 'yyyy-MM-dd'), 1) ) 
+               where DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) >= 1 and
+DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Month_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
                        AND t1.contentid IS NOT NULL) temp1 
                LEFT OUTER JOIN (SELECT DISTINCT ( t6.userid )                   AS users2, 
-                                                Concat(t6.userid, t6.contentid) AS field2 
+                                                concat(t6.userid, t6.contentid) AS field2 
                                 FROM   target_watching t6 
                                 WHERE  t6.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) ) 
                                        AND t6.download != 'Y' 
@@ -55,27 +62,24 @@ FROM   (SELECT temp1.date1                     AS date0,
                   temp1.geography_id1,
                   temp1.currency1) z1 
        FULL OUTER JOIN (SELECT t2.daily_day                 AS date2, 
-                               nvl(t4.geography_id, 0)      AS geography_id2, 
-                               count(DISTINCT( t1.userid )) AS new_users2, 
-                               nvl(t1.currency, 0)          AS currency2
+                               nvl(t4.geography_id, 0)      AS geography_id2,
+                               nvl(t1.currency, 0)          AS currency2                               
                         FROM   target_purchase t1 
-                               LEFT OUTER JOIN (SELECT DISTINCT userid 
-                                                FROM   target_purchase) t0
-                                            ON ( t1.userid = t0.userid ) 
-                                               AND t0.userid IS NULL 
-                               LEFT OUTER JOIN    dim_calendar t2 
-                                            ON ( t1.dt_reference = t2.day_identifier ) 
-                               LEFT OUTER JOIN    target_profiling t3 
+                               LEFT OUTER JOIN dim_calendar t2 
+                                            ON ( t1.dt_reference = 
+                                                 t2.day_identifier ) 
+                               LEFT OUTER JOIN target_profiling t3 
                                             ON ( t1.userid = t3.userid ) 
-                               LEFT OUTER JOIN    dim_geography t4 
+                               LEFT OUTER JOIN dim_geography t4 
                                             ON ( t3.regionname = t4.continent ) 
                                                AND ( t3.country = t4.state ) 
                                                AND ( t3.state = t4.region ) 
-                        WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) ) 
+                       WHERE DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) >= 1 and
+DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), t1.dt_reference) <= DATEDIFF(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 0), Month_c_top(date_sub(FROM_UNIXTIME(UNIX_TIMESTAMP(),'yyyy-MM-dd'), 1))) 
                         GROUP  BY t2.daily_day, 
                                   nvl(t4.geography_id, 0),
 								  nvl(t1.currency, 0)
-						) z2 
+					) z2 
                     ON ( z1.date0 = z2.date2 ) 
                        AND ( z1.geography_id0 = z2.geography_id2 )
                        AND ( z1.currency0 = z2.currency2 );
