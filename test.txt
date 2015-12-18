@@ -1,82 +1,73 @@
 -------------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Purchases.hql
--- Created on:    04/11/2015
--- Author:        Geetha Nair, Parvathy
--- Purpose:       Process to calculate the Purchases Aggregate table
+-- Script name:   AVSA_AGGREGATE_nPVR_Requests.hql
+-- Created on:    05/11/2015
+-- Author:        Venkateswarlu, U.
+-- Purpose:       Process to calculate the nPVR Aggregate table
 -------------------------------------------------------------------------------
 
--- creation of aggregate Purchases table
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_purchases (
-  context STRING,
-  date STRING,
-  platform STRING,
-  geography_id STRING,
-  app_version STRING,
-  common_content_id STRING,
-  payment_type STRING,
-  currency STRING,
-  purchases INT,
-  revenues DOUBLE,
-  users INT,
-  new_users INT,
-  views_purchased_contents INT,
-  users_view_purchased_contents INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/PURCHASES/output';
+delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
 
--- inserting data into table agg_purchases
-INSERT OVERWRITE TABLE agg_purchases
-SELECT "Purchases"             AS CONTEXT, 
-       temp1.date              AS DATE, 
-       temp1.platform          AS PLATFORM, 
-       temp1.geography_id      AS GEOGRAPHY_ID, 
-       temp1.app_version       AS APP_VERSION, 
-       temp1.common_content_id AS COMMON_CONTENT_ID, 
-       temp1.payment_type      AS PAYMENT_TYPE, 
-       temp1.currency          AS CURRENCY, 
-       count(temp1.purchases)  AS PURCHASES, 
-       sum(temp1.revenues)     AS REVENUES, 
-	   (if(1 == 2, 1, null))   AS USERS, 
-	   (if(1 == 2, 1, null))   AS NEW_USERS, 
-       count(temp2.field2)     AS VIEWS_PURCHASED_CONTENTS, 
-	   (if(1 == 2, 1, null))   AS USERS_VIEW_PURCHASED_CONTENTS
-FROM   (SELECT DISTINCT( concat(t1.userid, t1.contentid) ) AS field1, 
-                       t2.daily_day                        AS DATE, 
-                       t1.channel                          AS PLATFORM, 
-                       nvl(t4.geography_id, 0)             AS GEOGRAPHY_ID, 
-                       t1.appversion                       AS APP_VERSION, 
-                       nvl(t5.common_content_id, 0)        AS COMMON_CONTENT_ID, 
-                       t1.paymenttype                      AS PAYMENT_TYPE, 
-                       t1.currency                         AS CURRENCY, 
-                       t1.userid                           AS PURCHASES, 
-                       t1.originalprice                    AS REVENUES 
-        FROM   target_purchase t1 
-               LEFT OUTER JOIN dim_calendar t2 
-                            ON ( t1.dt_reference = t2.day_identifier ) 
-               LEFT OUTER JOIN target_profiling t3 
-                            ON ( t1.userid = t3.userid ) 
-               LEFT OUTER JOIN dim_geography t4 
-                            ON ( t3.regionname = t4.continent ) 
-                               AND ( t3.country = t4.state ) 
-                               AND ( t3.state = t4.region ) 
-               LEFT OUTER JOIN dim_common_catalog t5 
-                            ON ( t1.contentid = t5.detail_content_id ) 
-        WHERE t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )  
-          AND t1.contentid IS NOT NULL) temp1 
-       LEFT OUTER JOIN (SELECT concat(t1.userid, t1.contentid) AS field2 
-                        FROM   target_watching t1 
-                        WHERE  t1.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) )
-                          AND  t1.download != 'Y' 
-                          AND  t1.contentid IS NOT NULL) temp2 
-                    ON ( temp1.field1 = temp2.field2 ) 
-GROUP  BY temp1.date, 
-          temp1.platform, 
-          temp1.geography_id, 
-          temp1.app_version, 
-          temp1.common_content_id, 
-          temp1.payment_type, 
-          temp1.currency;
+drop temporary function GetTimeBand;
+create temporary function GetTimeBand as 'com.accenture.AVSA.hive.UDF.GetTimeBand';
+
+-- inserting data into table agg_npvr
+INSERT INTO TABLE agg_npvr
+
+SELECT temp1.context           AS context, 
+       temp1.date              AS date, 
+       temp1.timeband          AS timeband, 
+       temp1.platform          AS platform,
+       temp1.geography_id      AS geography_id,       
+       temp1.device_type       AS device_type, 
+       temp1.status            AS status, 
+       temp1.npvr_channel      AS npvr_channel, 
+       temp1.npvr_show         AS npvr_show, 
+       ( IF(1 == 2, 1, NULL) ) AS play_latency, 
+       ( IF(1 == 2, 1, NULL) ) AS deletion_latency, 
+       temp1.npvr_requests     AS npvr_requests, 
+       ( IF(1 == 2, 1, NULL) ) AS npvr_views, 
+       ( IF(1 == 2, 1, NULL) ) AS npvr_duration_min, 
+       ( IF(1 == 2, 1, NULL) ) AS npvr_deletions, 
+       ( IF(1 == 2, 1, NULL) ) AS max_concurrency_time_peak, 
+       ( IF(1 == 2, 1, NULL) ) AS max_npvr_concurrency 
+FROM   (SELECT t0.context, 
+               t0.date, 
+               t0.timeband,
+               t0.geography_id,           
+               t0.platform, 
+               t0.device_type, 
+               t0.status, 
+               t0.npvr_channel, 
+               t0.npvr_show, 
+               count(t0.user_id) AS npvr_requests 
+        FROM   (SELECT "Requests"                AS CONTEXT, 
+                       t2.daily_day              AS DATE, 
+                       GetTimeBand(t4.timestamp) AS TIMEBAND, 
+                       nvl(t5.geography_id, 0)   AS GEOGRAPHY_ID,
+                       t4.epg_channel            AS PLATFORM, 
+                       t4.user_id                AS USER_ID, 
+                       t4.device_type            AS DEVICE_TYPE, 
+                       t4.status                 AS STATUS, 
+                       t4.channel                AS NPVR_CHANNEL, 
+                       t4.epg_show               AS NPVR_SHOW 
+                FROM   target_npvr t4 
+                       LEFT OUTER JOIN dim_calendar t2 
+                                    ON ( t4.dt_reference = t2.day_identifier )
+                       LEFT OUTER JOIN target_profiling t3
+                                   ON ( t4.user_id = t3.userid )
+                       LEFT OUTER JOIN dim_geography t5
+                                   ON ( t3.regionname = t5.continent )
+                                   AND ( t3.country = t5.state )
+                                   AND ( t3.state = t5.region )
+                WHERE  t4.dt_reference = ( date_sub(from_unixtime(unix_timestamp(), 'yyyy-MM-dd'), 1) ) 
+                       AND t4.recording_action = 'CREATE') t0 
+        GROUP  BY t0.context, 
+                  t0.date, 
+                  t0.timeband, 
+                  t0.platform,
+                  t0.geography_id,                   
+                  t0.device_type, 
+                  t0.status, 
+                  t0.npvr_channel, 
+                  t0.npvr_show) temp1;   
