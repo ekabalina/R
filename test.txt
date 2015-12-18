@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_VAR_VOD.hql
 -- Created on:    12/11/2015
 -- Authors:       Stefanelli, Adriano
 -- Purpose:       Process to calculate the VAR Vod KPIs
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating table to store the VAR Vod's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS var_vod_content (
