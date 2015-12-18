@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Loyalty_Daily_by_Platform.hql
 -- Created on:    19/11/2015
 -- Author:        Calabrese, A.
 -- Purpose:       Process to calculate the Loyalty by Platform Aggregate (Daily) table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creating a temporary table to store the 1^ subset of Loyalty's KPIs
 CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty_daily_by_platform_tmp1 (
