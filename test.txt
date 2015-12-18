@@ -1,13 +1,13 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Accesses_Weekly.hql
 -- Created on:    09/11/2015
 -- Author:        Nayak, Vinayak
 -- Purpose:       Process to calculate the Accesses Aggregate (Weekly) table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
-add jar hdfs:/tmp/jar/AVSA_UDF_Compiled_Codes.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
 
 drop temporary function Week_c_top;
 
@@ -115,10 +115,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_02';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: accesses_weekly_02
 -- LOGGED_USERS_MORE_PLATFORMS
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE accesses_weekly_02
 SELECT
@@ -204,10 +204,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_03';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: accesses_weekly_03
 -- ANONYMOUS_USERS
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE accesses_weekly_03
 SELECT
@@ -292,10 +292,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_04';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: accesses_04
 -- DEVICES
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE accesses_weekly_04
 SELECT
@@ -382,10 +382,10 @@ LINES TERMINATED BY '\n'
 STORED AS TEXTFILE
 LOCATION '${hivevar:root_path}/agg/ACCESSES/accesses_weekly_05';
 
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Temporary table name: accesses_weekly_05
 -- DISTINCT_USERS_DEVICES
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 INSERT OVERWRITE TABLE accesses_weekly_05
 SELECT
@@ -457,9 +457,9 @@ group by x1.DATE, nvl(geography_id, 0), x1.DISTINCT_USERS_DEVICES, CASE
    ELSE '>20'
    END;
    
-----------------------------------------
+-- --------------------------------------
 -- FULL OUTER JOIN OF TEMP TABLES
-----------------------------------------    
+-- --------------------------------------    
 
 INSERT INTO TABLE agg_accesses
 SELECT
