@@ -1,12 +1,13 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Views_Monthly.hql
 -- Created on:    29/10/2015
 -- Author:        Fumagalli, Luca
 -- Purpose:       Process to calculate the Views Aggregate (Monthly) table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
-delete jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
-add jar /tmp/jar/AVSA_UDF_Compiled_Code.jar;
+delete jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+add jar ${hivevar:PATH_SH}/scripts/shells/AVSA_UDF_Compiled_Code.jar;
+
 
 drop temporary function Month_c_top;
 create temporary function Month_c_top as 'com.accenture.AVSA.hive.UDF.Month_c_top';
