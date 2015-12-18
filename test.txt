@@ -1,41 +1,17 @@
--- -----------------------------------------------------------------------------
--- Script name:   AVSA_AGGREGATE_Loyalty.hql
--- Created on:    06/11/2015
+-------------------------------------------------------------------------------
+-- Script name:   AVSA_AGGREGATE_Loyalty_by_Platform.hql
+-- Created on:    19/11/2015
 -- Author:        Calabrese, A.
--- Purpose:       Process to calculate the Loyalty Aggregate table
--- -----------------------------------------------------------------------------
+-- Purpose:       Process to calculate the Loyalty by Platform Aggregate table
+-------------------------------------------------------------------------------
 
--- creating table to store the Loyalty's KPIs
-CREATE EXTERNAL TABLE IF NOT EXISTS agg_loyalty (
-  context STRING,
-  date STRING,
-  geography_id STRING,
-  platform STRING,
-  new_logged_users INT,
-  loyal_logged_users INT,
-  reconnected_logged_users INT,
-  lost_logged_users INT,
-  new_anonymous_users INT,
-  loyal_anonymous_users INT,
-  reconnected_anonymous_users INT,
-  lost_anonymous_users INT,
-  last_view_period_3 INT,
-  last_view_period_4 INT,
-  last_view_period_min_4 INT
-)
-ROW FORMAT
-DELIMITED FIELDS TERMINATED BY '\073'
-LINES TERMINATED BY '\n'
-STORED AS TEXTFILE
-LOCATION '${hivevar:root_path}/agg/LOYALTY/output';
-
--- inserting data into agg_loyalty table from agg_loyalty_daily
-INSERT OVERWRITE TABLE agg_loyalty
+-- inserting data into agg_loyalty table from agg_loyalty_daily_by_platform
+INSERT INTO TABLE agg_loyalty
 SELECT
   context                     AS CONTEXT,
   date                        AS DATE,
   geography_id                AS GEOGRAPHY_ID,
-  (if(1 == 2, 1, null))       AS PLATFORM,
+  platform                    AS PLATFORM,
   new_logged_users            AS NEW_LOGGED_USERS,
   loyal_logged_users          AS LOYAL_LOGGED_USERS,
   reconnected_logged_users    AS RECONNECTED_LOGGED_USERS,
@@ -47,15 +23,15 @@ SELECT
   last_view_period_3          AS LAST_VIEW_PERIOD_3,
   last_view_period_4          AS LAST_VIEW_PERIOD_4,
   last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
-FROM agg_loyalty_daily;
+FROM agg_loyalty_daily_by_platform;
 
--- inserting data into agg_loyalty table from agg_loyalty_weekly    
+-- inserting data into agg_loyalty table from agg_loyalty_weekly_by_platform
 INSERT INTO TABLE agg_loyalty
 SELECT
   context                     AS CONTEXT,
   date                        AS DATE,
   geography_id                AS GEOGRAPHY_ID,
-  (if(1 == 2, 1, null))       AS PLATFORM,
+  platform                    AS PLATFORM,
   (if(1 == 2, 1, null))       AS NEW_LOGGED_USERS,
   loyal_logged_users          AS LOYAL_LOGGED_USERS,
   reconnected_logged_users    AS RECONNECTED_LOGGED_USERS,
@@ -67,15 +43,15 @@ SELECT
   last_view_period_3          AS LAST_VIEW_PERIOD_3,
   last_view_period_4          AS LAST_VIEW_PERIOD_4,
   last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
-FROM agg_loyalty_weekly;
+FROM agg_loyalty_weekly_by_platform;
    
--- inserting data into agg_loyalty table from agg_loyalty_monthly   
+-- inserting data into agg_loyalty table from agg_loyalty_monthly_by_platform
 INSERT INTO TABLE agg_loyalty
 SELECT
   context                     AS context,
   date                        AS date,
   geography_id                AS geography_id,
-  (if(1 == 2, 1, null))       AS PLATFORM,
+  platform                    AS PLATFORM,
   (if(1 == 2, 1, null))       AS new_logged_users,
   loyal_logged_users          AS loyal_logged_users,
   reconnected_logged_users    AS reconnected_logged_users,
@@ -87,4 +63,4 @@ SELECT
   last_view_period_3          AS LAST_VIEW_PERIOD_3,
   last_view_period_4          AS LAST_VIEW_PERIOD_4,
   last_view_period_min_4      AS LAST_VIEW_PERIOD_MIN_4
-FROM agg_loyalty_monthly;
+FROM agg_loyalty_monthly_by_platform;
