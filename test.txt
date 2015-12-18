@@ -1,9 +1,9 @@
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 -- Script name:   AVSA_AGGREGATE_Registrations.hql
 -- Created on:    28/10/2015
 -- Author:        Parvathy Geetha Nair
 -- Purpose:       Process to calculate the Registration Aggregate table
--------------------------------------------------------------------------------
+-- -----------------------------------------------------------------------------
 
 -- creation of aggregate registrations table 
 CREATE EXTERNAL TABLE IF NOT EXISTS agg_registrations (
