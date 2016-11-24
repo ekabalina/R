@@ -1,0 +1,82 @@
+SELECT 
+	if(gender is null, 'GUEST', 'REGISTERED') AS user_type,
+	floor(datediff(from_unixtime(unix_timestamp('${hiveconf:ENDDATE}', 'yyyyMMdd')),from_unixtime(unix_timestamp(birth_date, 'yyyyMMdd')))/365.25) AS age,
+	gender,
+	state,
+	regionname AS region,
+	platform,
+	timeband,
+	sum(unique_sessions) AS accesses,
+	sum(accesses_with_views) AS accesses_with_views,
+	sum(accesses_without_views) AS accesses_without_views
+FROM(
+    SELECT  
+		if(login_devices.deviceid is null, loadhome.userid, login_devices.userid) AS userid,
+		loadhome.deviceid AS deviceid,
+		count(distinct loadhome.sessionid) AS unique_sessions,
+		platform,
+		 timeband,
+		-- if(loadhome.userid = login_devices.userid, 'N', 'Y')  AS access_as_anonymous,
+		sum(if(videostart.deviceid is null, 0,1)) AS accesses_with_views,
+		sum(if(videostart.deviceid is null, 1,0)) AS accesses_without_views
+	FROM(
+		SELECT          
+			userid, 
+			deviceid,
+			sessionid,
+			customerid,
+			platform,
+			min(CASE WHEN substr(timestamp,9,2) between 0 and 3 THEN '0to4' 
+			WHEN substr(timestamp,9,2) between 4 and 7 THEN '4to8'
+			WHEN substr(timestamp,9,2) between 8 and 11 THEN'8to12'
+			WHEN substr(timestamp,9,2) between 12 and 15 THEN '12to16'
+			WHEN substr(timestamp,9,2) between 16 and 19 THEN'16to20'
+			ELSE '20to24' END)  AS  timeband 
+		FROM user_action 
+		WHERE partition_date = '${hiveconf:ENDDATE}' -- specify target day
+		AND eventtype = 'LOADHOME'  -- select "access platform" entries
+		AND terminationreason = '' -- delect successful accesses
+		GROUP BY 
+			userid, 
+			deviceid,
+			sessionid,
+			customerid,
+			platform
+			)loadhome
+		LEFT OUTER JOIN( 
+		SELECT 
+			deviceid,
+			collect_list(userid)[0]  AS userid
+		FROM  login_devices
+		GROUP BY deviceid
+		)  login_devices
+		
+		LEFT OUTER JOIN anonymous_devices ON anonymous_devices.deviceid = loadhome.deviceid 
+		LEFT OUTER JOIN (
+		SELECT
+			sessionid,
+			deviceid
+		FROM user_action 
+		WHERE partition_date = '${hiveconf:ENDDATE}'
+		AND eventtype = 'VIDEOSTART' --select entries related to content view
+		AND contentsubtype != 'TRAILER'
+		GROUP BY 
+			sessionid,
+			deviceid
+		)videostart
+		ON  loadhome.deviceid = videostart.deviceid -- merge 'LOADHOME' with 'VIDEOSTART' on sessionid and deviceid
+		AND loadhome.sessionid =  videostart.sessionid 
+  GROUP BY 
+  loadhome.deviceid, loadhome.userid,
+  login_devices.userid, login_devices.deviceid, 
+  platform, timeband
+	)viewership
+LEFT OUTER JOIN profiling  ON profiling.userid = viewership.userid
+    GROUP BY 
+	gender,
+	floor(datediff(from_unixtime(unix_timestamp('${hiveconf:ENDDATE}', 'yyyyMMdd')),from_unixtime(unix_timestamp(birth_date, 'yyyyMMdd')))/365.25),
+	gender,
+	state,
+	regionname,
+	platform,
+	timeband;
