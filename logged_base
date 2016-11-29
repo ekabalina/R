@@ -1,4 +1,4 @@
-CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_base( 
+CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_base(
 userid string,
 number_used_platform tinyint,
 number_used_devices tinyint,
@@ -8,14 +8,16 @@ views int,
 downloads int,
 channel_name string,
 rank_channel int,
-categoryname string,
-platform string)
+categoryname string
+--platform string
+)
 PARTITIONED BY (partition_date string)
 LOCATION '${hiveconf:ROOTPATH}/processed/AVA/var_logged_base';
 
+
 INSERT INTO TABLE var_logged_base PARTITION  (partition_date = '${hiveconf:ENDDATE}')
 SELECT
-	userid,	
+	userid,
 	number_used_platform,
 	number_used_devices,
 	accesses,
@@ -24,31 +26,29 @@ SELECT
 	sum(downloads) as downloads,
 	collect_set(channel_name)[0] AS channel_name,
 	RANK() OVER (PARTITION BY userid ORDER BY playback_duration DESC) AS rank_channel,
-	collect_set(categoryname)[0] AS categoryname,
-	collect_set(platform)[0] AS platform
+	collect_set(categoryname)[0] AS categoryname
+	--collect_set(platform)[0] AS platform
 FROM(
 	SELECT
 		accesses.userid,
 		sum(distinct number_used_platform) as number_used_platform,
 		sum(distinct accesses) as accesses,
 		sum(distinct number_used_devices) as number_used_devices,
-		sum(playback_duration) as playback_duration,
+		if(channel_name is not null, sum(playback_duration)+0.001,sum(playback_duration))  as playback_duration,
 		sum(views) as views,
 		sum(downloads) as downloads,
 		channel_name,
-		categoryname,
-		platform
+		categoryname
+      --  platform
 	FROM(
 		SELECT
 			userid,
-			COUNT(distinct platform) as number_used_platform,	
+			COUNT(distinct platform) as number_used_platform,
 			COUNT(distinct sessionid) as accesses,
 			COUNT(distinct deviceid) as number_used_devices
-		FROM login
-		WHERE partition_date='${hiveconf:ENDDATE}'  
-		AND eventtype = 'LOGIN'
-		AND loginsuccess = 'Y'
-		GROUP BY 
+		FROM user_action
+		WHERE partition_date='${hiveconf:ENDDATE}'  AND  customerid != 'GUEST'
+		GROUP BY
 			userid
     		)accesses
 		LEFT OUTER JOIN (
@@ -57,37 +57,38 @@ FROM(
 			platform,
 			contentid,
 			COUNT(CASE WHEN download != 'Y' THEN contentid END) AS views,
-			SUM(CASE WHEN download != 'Y' THEN consumption END)/60 as playback_duration, 
+			SUM(CASE WHEN download != 'Y' THEN consumption END)/60 as playback_duration,
 			SUM(IF(download = 'Y',1,0)) AS  downloads
 		FROM watching
 		WHERE partition_date='${hiveconf:ENDDATE}' and customerid != 'GUEST'
-		GROUP BY 
-			userid, 
+		GROUP BY
+			userid,
 			platform,
 			contentid
 		)watching
 	ON watching.userid = accesses.userid
 	LEFT OUTER JOIN  vod_catalog vod ON watching.contentid = vod.contentid
 	LEFT OUTER JOIN  tvchannels on  tvchannels.channel_id =  watching.contentid
-	GROUP BY 
+	GROUP BY
 		accesses.userid,
-		platform,
+	--	platform,
 		channel_name,
 		categoryname
 	)content
-GROUP BY  
-	userid,
+GROUP BY
+	userid, categoryname, channel_name,
 	number_used_platform,
 	number_used_devices,
 	playback_duration,
 	accesses;
-	
---====
+
+
+	--====
 -- DAILY VAR SCHEMA
 --====
 CREATE EXTERNAL TABLE IF NOT EXISTS var_logged_1d (
 userid string,
-birth_date string, 
+birth_date string,
 gender char(1),
 age string,
 state string,
@@ -98,7 +99,7 @@ registrationmethod string,
 referralsource string,
 registrationtrigger string,
 registrationdate string,
-most_used_platform string,    
+--most_used_platform string,
 first_access_date string,
 first_view_date string,
 accesses int,
@@ -114,7 +115,23 @@ top_watched_category string,
 top_watched_channel string,
 downloads int,
 purchases int,
-revenues decimal(15,2))
+revenues decimal(15,2),
+pageviews bigint,
+country string,
+new_registrations INT,
+total_detail_views bigint,
+views_after_details INT,
+accesses_with_views INT,
+accesses_without_views INT,
+logged_accesses INT,
+logged_views INT,
+region string,
+unique_views INT,
+movie_trailer_views BIGINT,
+views_after_trailer INT,
+average_playback_duration DECIMAL(38,5),
+converted string
+)
 PARTITIONED BY (partition_date string)
 LOCATION '${hiveconf:ROOTPATH}/processed/AVA/var_logged_1d';
 
@@ -122,8 +139,8 @@ LOCATION '${hiveconf:ROOTPATH}/processed/AVA/var_logged_1d';
 -- DAILY VAR AGGR
 --====
 
-INSERT INTO TABLE  var_logged_1d PARTITION  (partition_date = '${hiveconf:ENDDATE}')
-SELECT 
+INSERT INTO TABLE var_logged_1d PARTITION  (partition_date = '${hiveconf:ENDDATE}')
+SELECT
 	viewership.userid,
 	birth_date,
 	gender,
@@ -136,23 +153,43 @@ SELECT
 	referralsource,
 	registrationtrigger,
 	j.date as registrationdate,
-	most_used_platform,
+--	most_used_platform,
 	a.access_day as first_access_date,
 	w.start_day as first_view_date,
-	accesses,
+	viewership.accesses,
 	number_used_platform,
 	number_used_devices,
 	video_views,
 	video_playback_duration,
 	live_views,
 	live_playback_duration,
-	views,
-	playback_duration,
+	viewership.views,
+	viewership.playback_duration,
 	categoryname as top_watched_category,
 	channel_name as top_watched_channel,
 	downloads,
 	purchases,
-	revenues
+	revenues,
+	tmp_pageview.pageviews,
+	country,
+	if(from_unixtime(unix_timestamp(j.date ,'yyyy-MM-dd'), 'yyyyMMdd')= '${hiveconf:ENDDATE}',1,0) as new_registrations,
+	tmp_VD.total_detail_views,
+	tmp_VD.views_after_details,
+	tmp_views_registered.accesses_with_views,
+	tmp_views_registered.accesses_without_views,
+	tmp_LA.logged_accesses,
+	tmp_LV.logged_views,
+	regionname,
+	tmp_wtch_kpi.unique_views,
+	tmp_wtch_kpi.movie_trailer_views,
+	tmp_wtch_kpi.views_after_trailer,	
+	(CASE 
+		WHEN viewership.playback_duration IS NULL OR viewership.playback_duration =0
+		OR viewership.views IS NULL OR viewership.views =0
+		THEN 0
+		ELSE viewership.playback_duration/viewership.views 
+	END) AS average_playback_duration,
+	tmp_c.converted
 
 FROM (
 	SELECT
@@ -167,30 +204,31 @@ FROM (
 		sum(if(categoryname is not NULL, playback_duration,0)) as video_playback_duration,
 		number_used_platform,
 		number_used_devices
+
 	FROM var_logged_base
 	WHERE partition_date='${hiveconf:ENDDATE}'
-	GROUP BY  
-		userid, 
+	GROUP BY
+		userid,
 		number_used_platform,
 		number_used_devices
 	)viewership
-	
-	LEFT OUTER JOIN (
-	SELECT * from (
-		SELECT 
-		userid,
-		collect_set(platform)[0] AS most_used_platform,
-		RANK() OVER (PARTITION BY userid ORDER BY playback_duration DESC) AS rank_
-	FROM var_logged_base
-	WHERE  partition_date = '${hiveconf:ENDDATE}' 
-	GROUP BY 
-		userid,
-		playback_duration
-		)rank_platform
-	WHERE rank_platform.rank_ = 1
-	)top_platform
-ON top_platform.userid = viewership.userid
-	
+
+--	LEFT OUTER JOIN (
+--	SELECT * from (
+--		SELECT
+--		userid,
+--		collect_set(platform)[0] AS most_used_platform,
+--		RANK() OVER (PARTITION BY userid ORDER BY playback_duration DESC) AS rank_
+--	FROM var_logged_base
+--	WHERE  partition_date = '${hiveconf:ENDDATE}'
+--	GROUP BY
+--		userid,
+--		playback_duration
+--		)rank_platform
+--	WHERE rank_platform.rank_ = 1
+--	)top_platform
+--ON top_platform.userid = viewership.userid
+
 LEFT OUTER JOIN (
 SELECT * FROM (
 	SELECT
@@ -198,7 +236,7 @@ SELECT * FROM (
 		collect_set(categoryname)[0] AS categoryname,
 		RANK() OVER (PARTITION BY userid ORDER BY playback_duration DESC) AS rank_
 	FROM var_logged_base
-	WHERE partition_date = '${hiveconf:ENDDATE}' 
+	WHERE partition_date = '${hiveconf:ENDDATE}'
 	AND categoryname is not NULL
 	GROUP  BY
 		userid,
@@ -210,33 +248,54 @@ ON top_category.userid = viewership.userid
 
 	LEFT OUTER JOIN (
 	SELECT * from (
-		SELECT 
+		SELECT
 		userid,
 		collect_set(channel_name)[0] AS channel_name,
 		RANK() OVER (PARTITION BY userid ORDER BY playback_duration DESC) AS rank_
 	FROM var_logged_base
-	WHERE  partition_date = '${hiveconf:ENDDATE}' 
+	WHERE  partition_date = '${hiveconf:ENDDATE}'
 	AND channel_name is not NULL
-	GROUP BY 
+	GROUP BY
 		userid,
 		playback_duration
 		)rank_channel
 	WHERE rank_channel.rank_ = 1
 	)top_channel
 ON top_channel.userid = viewership.userid
-LEFT OUTER JOIN (	
-	SELECT 
+LEFT OUTER JOIN (
+	SELECT
 		userid,
 		SUM(CASE WHEN discountedprice>0 THEN discountedprice ELSE originalprice END) AS revenues,
-		COUNT(userid) AS purchases 
+		COUNT(userid) AS purchases
 	FROM purchase
 	WHERE partition_date = '${hiveconf:ENDDATE}'
-	GROUP BY  
+	GROUP BY
 	userid
     )purchases
 ON purchases.userid =  viewership.userid
 
-LEFT OUTER JOIN watching_users_list w ON w.user_id = viewership.userid
-LEFT OUTER JOIN login_users_list a ON a.user_id = viewership.userid
-LEFT OUTER JOIN profiling ON profiling.userid = viewership.userid 
-LEFT OUTER JOIN join_users_list j ON j.uniquecontract = viewership.userid ;
+LEFT OUTER JOIN login_users_list a
+	ON a.user_id = viewership.userid
+LEFT OUTER JOIN watching_users_list w
+	ON w.user_id = viewership.userid
+LEFT OUTER JOIN profiling
+	ON profiling.userid = viewership.userid
+LEFT OUTER JOIN join_users_list j
+	ON j.uniquecontract = viewership.userid
+LEFT OUTER JOIN tmp_views_after_details_logged AS tmp_VD
+	ON viewership.userid = tmp_VD.userid
+LEFT OUTER JOIN tmp_view_with_or_without_views_registered AS tmp_views_registered
+	ON viewership.userid = tmp_views_registered.userid
+LEFT OUTER JOIN tmp_pageviews_logged AS tmp_pageview
+	ON viewership.userid = tmp_pageview.userid
+LEFT OUTER JOIN tmp_logged_accesses AS tmp_LA
+	ON viewership.userid = tmp_LA.userid
+LEFT OUTER JOIN tmp_logged_views AS tmp_LV
+	ON viewership.userid = tmp_LV.userid
+LEFT OUTER JOIN tmp_watching_kpi_registered AS tmp_wtch_kpi
+	ON viewership.userid = tmp_wtch_kpi.userid
+LEFT OUTER JOIN tmp_converted tmp_c
+	ON viewership.userid = tmp_c.userid
+UNION all
+SELECT *
+FROM tmp_reg_usr_without_action;
