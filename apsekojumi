@@ -1,0 +1,224 @@
+### Apsekojumu statistika
+### Praktiskie darbi 5
+### Precizitātes novērtēšana
+
+
+# Bibliotekas ####
+require(data.table)
+require(sampling)
+require(foreach)
+require(ggplot2)
+require(vardpoor)
+
+
+# Reset workspace ####
+rm(list = ls())
+gc()
+
+
+# Datu fails
+file.data <- file.path("http://home.lu.lv/~pm90015/work/LU",
+                       "ApsekojumuStatistika/Data/Population.Rdata")
+
+
+# Nolādē datu failu, ja nepieciešams
+download.file(file.data, "Population.Rdata", mode = "wb")
+
+# Pārbaude vai datu nolāde ir veiksmīga
+tools::md5sum("Population.Rdata") == "d035c64414527a3dd581104e06ebeb34"
+
+
+# Ielādē datu failu
+load("Population.Rdata")
+
+pop
+names(pop)
+dim(pop)
+
+# Pārkodē J100
+pop[, .N, keyby = J100]
+pop[is.na(J100) | J100 == 9, J100 := 2]
+pop[, .N, keyby = J100]
+
+
+# Pētāmie rādītāji (y) ####
+
+# Ekonomiskā aktivitāte
+pop[, .N, keyby = eka]
+pop[, y1 := as.integer(eka == 1)]
+pop[, y2 := as.integer(eka == 2)]
+pop[, y3 := as.integer(eka == 3)]
+
+ynames <- paste0("y", 1:3)
+ynames
+
+
+# Palīginformācija (x) ####
+
+# Konstante
+pop[, x1 := 1L]
+
+# Dzimums
+pop[, .N, keyby = DZIMUMS]
+pop[, x2 := as.integer(DZIMUMS == 1)]
+
+# J100
+pop[, .N, keyby = J100]
+pop[, x3 := as.integer(J100 == 1)]
+
+
+# X mainīgie
+xnames <- paste0("x", 1:3)
+xnames
+
+
+# X summārās vērtības
+totals <- pop[, lapply(.SD, sum), .SDcols = xnames]
+totals
+
+tot <- unlist(totals)
+tot
+
+
+# SRS ####
+
+# Izlases apjoms
+n <- 2000
+
+# Izlasē iekļaušanas varbūtības
+pop[, pik := n / .N]
+pop[, sum(pik)]
+
+
+# SRS
+pop[, s := srswor(n, .N)]
+pop[, sum(s)]
+
+
+# Sample
+s <- pop[s == 1L]
+
+
+# Dizaina svari
+s[, d := s / pik]
+s[, sum(d)]
+
+all.equal(s[, sum(d)], pop[, .N])
+
+
+# HT novērtējumi
+Y_HT <- s[, lapply(.SD[, ynames, with = F], function(y) sum(y * d))]
+Y_HT
+
+
+# Svaru kalibrācija
+
+# Margins for plot
+par("mar")
+par(mar=rep(2, 4))
+
+s[, g := calib(.SD[, xnames, with = F], d, tot,
+               method = "linear", description = T)]
+
+
+# Kalibrētie svari
+s[, w := d * g]
+s[, sum(w)]
+
+
+# Kalibrētie novērtējumi
+Y_cal <- s[, lapply(.SD[, ynames, with = F], function(y) sum(y * w))]
+Y_cal
+
+
+Y_HT
+Y_cal
+
+
+### Precizitāte HT novērtējumam
+
+pop[, strata := 1L]
+
+s[, strata := 1L]
+s[, id := .I]
+
+N_h <- pop[, .N, keyby = strata]
+N_h
+
+pr_HT <- vardom(Y = ynames, H = "strata", PSU = "id",
+                w_final = "d", dataset = s)
+pr_HT$all_result
+
+
+### Precizitāte calib novērtējumam
+
+# Svērtās regresijas atlikumi
+s[, e1 := lm(y1 ~ x1 + x2 + x3 - 1, weights = d)$residuals]
+s[, e2 := lm(y2 ~ x1 + x2 + x3 - 1, weights = d)$residuals]
+s[, e3 := lm(y3 ~ x1 + x2 + x3 - 1, weights = d)$residuals]
+
+enames <- paste0("e", 1:3)
+enames
+
+
+# Atlikumus pareizina ar g-svariem
+s[, e1_g := e1 * g]
+s[, e2_g := e2 * g]
+s[, e3_g := e3 * g]
+
+egnames <- paste0("e", 1:3, "_g")
+egnames
+
+
+# Dispersijas novērtējums ar atlikumiem
+pr_cal1 <- vardom(Y = egnames, H = "strata", PSU = "id",
+                  w_final = "d", dataset = s)
+pr_cal1$all_result
+
+
+# Dispersijas novērtējums ar kalibrāciju
+pr_cal2 <- vardom(Y = ynames, H = "strata", PSU = "id",
+                  w_final = "w", dataset = s,
+                  X = xnames, g = "g", outp_res = T)
+pr_cal2$all_result
+
+
+# Salīdzina var un SE novērtējumus
+pr_cal1$all_result[, .(variable, var, se)]
+pr_cal2$all_result[, .(variable, var, se)]
+
+
+
+# Salīdzina regresijas atlikumus
+
+pr_cal2$res_out[, ynames, with = F]
+s[, enames, with = F]
+
+cbind(pr_cal2$res_out[, ynames, with = F], s[, enames, with = F])
+all.equal(pr_cal2$res_out[, ynames, with = F], s[, enames, with = F])
+
+
+
+# Salīdzina HT un cal
+pr_HT$all_result[, .(variable, estim, var, se, cv)]
+pr_cal2$all_result[, .(variable, estim, var, se, cv)]
+
+
+
+
+# Precizitātes novērtēšana divu summāro attiecībai
+# vardom funkcijā papildus jāizmanto Z arguments
+
+# Konstante
+s[, visi := 1]
+
+# Nodarbinātības līmenis
+
+# HT novērtējums
+vardom(Y = "y1", Z = "visi", H = "strata", PSU = "id",
+       w_final = "d", dataset = s)$all_result[, .(variable, estim, var, se, cv)]
+
+# Kalibrētais novērtējums
+vardom(Y = "y1", Z = "visi", H = "strata", PSU = "id",
+       w_final = "w", dataset = s,
+       X = xnames, g = "g")$all_result[, .(variable, estim, var, se, cv)]
