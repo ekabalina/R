@@ -3,6 +3,7 @@
 ### Precizitātes novērtēšana
 
 
+
 # Bibliotekas ####
 require(data.table)
 require(sampling)
@@ -21,7 +22,6 @@ file.data <- file.path("http://home.lu.lv/~pm90015/work/LU",
                        "ApsekojumuStatistika/Data/Population.Rdata")
 
 
-# Nolādē datu failu, ja nepieciešams
 download.file(file.data, "Population.Rdata", mode = "wb")
 
 # Pārbaude vai datu nolāde ir veiksmīga
@@ -150,7 +150,7 @@ pr_HT <- vardom(Y = ynames, H = "strata", PSU = "id",
 pr_HT$all_result
 
 
-### Precizitāte calib novērtējumam
+### Precizitāte calibretajam novērtējumam
 
 # Svērtās regresijas atlikumi
 s[, e1 := lm(y1 ~ x1 + x2 + x3 - 1, weights = d)$residuals]
@@ -203,6 +203,7 @@ all.equal(pr_cal2$res_out[, ynames, with = F], s[, enames, with = F])
 pr_HT$all_result[, .(variable, estim, var, se, cv)]
 pr_cal2$all_result[, .(variable, estim, var, se, cv)]
 
+## redzam, ka kalibraacijas dispersija ir nozīmīgi mazaka neka HT novertejumam
 
 
 
@@ -210,7 +211,7 @@ pr_cal2$all_result[, .(variable, estim, var, se, cv)]
 # vardom funkcijā papildus jāizmanto Z arguments
 
 # Konstante
-s[, visi := 1]
+s[, visi := 1L]
 
 # Nodarbinātības līmenis
 
@@ -222,3 +223,36 @@ vardom(Y = "y1", Z = "visi", H = "strata", PSU = "id",
 vardom(Y = "y1", Z = "visi", H = "strata", PSU = "id",
        w_final = "w", dataset = s,
        X = xnames, g = "g")$all_result[, .(variable, estim, var, se, cv)]
+
+
+
+# Bezdarba līmenis – darba meklētāju skaits pret ekonomiski aktīvajām personām
+# (nodarbinātie un darba meklētāji)
+s[, ek_akt := as.integer(eka %in% c(1, 2))]
+
+# HT novertejums
+vardom(Y = "y2", Z = "ek_akt", H = "strata", PSU = "id",
+       w_final = "d", dataset = s)$all_result[, .(variable, estim, var, se, cv)]
+
+# Kalibretais novertejums
+vardom(Y = "y2", Z = "ek_akt", H = "strata", PSU = "id",
+       w_final = "w", dataset = s,
+       X = xnames, g = "g")$all_result[, .(variable, estim, var, se, cv)]
+
+
+
+# Vidēji nostrādātās stundas nodarbinātajām personām.
+
+s[, E := E59]
+s[is.na(E59), E := 0L]
+
+# HT novertejums
+vardom(Y = "E", Z = "y1", H = "strata", PSU = "id",
+       w_final = "d", dataset = s)$all_result[, .(variable, estim, var, se, cv)]
+
+# Kalibretais novertejums
+vardom(Y = "E", Z = "y1", H = "strata", PSU = "id",
+       w_final = "w", dataset = s,
+       X = xnames, g = "g")$all_result[, .(variable, estim, var, se, cv)]
+
+sum(pop$E59, na.rm = T) / sum(pop$y1)
